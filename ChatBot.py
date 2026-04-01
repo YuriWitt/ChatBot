@@ -1,3 +1,4 @@
+import warnings
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -11,8 +12,11 @@ from webdriver_manager.chrome import ChromeDriverManager
 import pandas as pd
 from rapidfuzz import process
 import time
-import easyocr # Importando a Inteligência Artificial
+import easyocr
 import os
+
+# Ignora o aviso vermelho/amarelo do PyTorch sobre a placa de vídeo
+warnings.filterwarnings("ignore", category=UserWarning)
 
 def buscar_resposta(mensagem):
     try:
@@ -28,16 +32,16 @@ def buscar_resposta(mensagem):
     preguntas = list(base_dados.keys())
     resposta, score, _ = process.extractOne(mensagem, preguntas)
 
-    if score >= 80:
+    # ALTERAÇÃO 1: Reduzido de 100 para 75 para perdoar erros de leitura da IA
+    if score >= 75:
         return base_dados[resposta]
     return "Desculpe, não consegui entender sua solicitação... \nPor favor, tente informar a mensagem de erro que aparece na tela."
 
 print("Chatbot iniciado. Digite 'sair' para encerrar a conversa.")
 
-# Carregando a Inteligência Artificial antes de abrir o navegador (pode levar alguns segundos)
-print("🧠 Carregando o motor de IA para leitura de imagens...")
-leitor_ia = easyocr.Reader(['pt']) # 'pt' para português
-print("✅ Motor de IA carregado com sucesso!")
+print("Carregando IA para leitura de imagens...")
+leitor_imagem = easyocr.Reader(['pt'])
+print("IA de leitura de imagens carregada com sucesso!")
 
 chrome_options = Options()
 chrome_options.add_experimental_option("detach", True)
@@ -81,8 +85,6 @@ while True:
                 if baloes_recebidos:
                     ultimo_balao = baloes_recebidos[-1]
                     
-                    # ... [Início do bloco onde ele acha o último balão] ...
-                    
                     try:
                         caixa_texto = ultimo_balao.find_element(By.XPATH, ".//div[contains(@class, 'copyable-text')]")
                         data_hora = caixa_texto.get_attribute("data-pre-plain-text")
@@ -92,7 +94,6 @@ while True:
                     textos = ultimo_balao.find_elements(By.XPATH, ".//span[@dir='ltr' or contains(@class, 'selectable-text')]")
                     imagens = ultimo_balao.find_elements(By.XPATH, ".//img[contains(@src, 'blob:')]")
 
-                    # 1️⃣ CORREÇÃO: Zerando as variáveis a cada mensagem lida!
                     ultima_mensagem = ""
                     mensagem_limpa = ""
 
@@ -102,12 +103,12 @@ while True:
 
                     print(f"🕒 {data_hora.strip() if data_hora else ''}")
                     
-                    # 2️⃣ CORREÇÃO: Priorizando a IMAGEM. Se tiver foto, ele processa a foto primeiro!
+                    # ALTERAÇÃO 2: Bloco de imagem atualizado para enviar o texto lido ao cliente
                     if imagens:
                         print("📷 Imagem detectada. O robô está processando...")
                         try:
                             imagem_elemento = imagens[-1]
-                            caminho_imagem = "imagem_recebida.jpg"
+                            caminho_imagem = "imagem_recebida.png"
 
                             imagem_elemento.screenshot(caminho_imagem)
 
@@ -116,9 +117,16 @@ while True:
                             print(f"👀 O robô leu a imagem e extraiu o texto: '{texto_extraido}'")
 
                             if len(texto_extraido.strip()) > 4:
-                                resposta = buscar_resposta(texto_extraido)
-                                if "Desculpe, não consegui entender sua solicitação" in resposta:
-                                    resposta = "Desculpe, mas não consegui entender o texto extraído da imagem. Por favor, tente enviar uma imagem mais clara ou informe o erro manualmente."  
+                                resposta_banco = buscar_resposta(texto_extraido)
+                                
+                                if "Desculpe, não consegui entender sua solicitação" in resposta_banco:
+                                    resposta = (f"🔍 *Texto que consegui ler na imagem:*\n_{texto_extraido}_\n\n"
+                                                f"⚠️ *Aviso:*\nNão encontrei esse erro na minha base de dados. "
+                                                f"Por favor, tente enviar uma imagem mais clara ou digite o erro manualmente.")
+                                else:
+                                    resposta = (f"🔍 *Texto que consegui ler na imagem:*\n_{texto_extraido}_\n\n"
+                                                f"✅ *Solução Encontrada:*\n{resposta_banco}")
+                                    
                             else:
                                 resposta = "Desculpe, mas o texto extraído da imagem parece estar incompleto ou ilegível. Por favor, tente enviar uma imagem mais clara ou informe o erro manualmente."
                             
@@ -129,7 +137,6 @@ while True:
                             print(f"⚠️ Ocorreu um erro ao processar a imagem: {e}")
                             resposta = "Desculpe, mas ocorreu um erro ao processar a imagem que você enviou. Por favor, tente enviar uma imagem mais clara ou informe o erro manualmente."
 
-                    # 3️⃣ Se não tem imagem, aí sim ele analisa o texto
                     elif mensagem_limpa:
                         print(f"👀 O robô leu a mensagem: '{mensagem_limpa}'")
                         saudacoes = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "preciso de ajuda", "menu", "deu erro"]
@@ -161,18 +168,16 @@ while True:
                         print("❌ Formato não suportado")
                         resposta = "Desculpe, mas o tipo de mensagem que você enviou não é suportado pelo nosso robô. Por favor, envie uma mensagem de texto ou uma imagem clara do erro que você está enfrentando."
 
-                    # ... [O restante do código que envia a resposta continua igual] ...
-
-                    # 3. Enviando a resposta
                     caixa_texto_envio = navegador.find_element(By.XPATH, '//*[@id="main"]//footer//div[@contenteditable="true"]')
 
                     for linha in resposta.split('\n'):
-                        caixa_texto_envio.send_keys(linha)
-                        caixa_texto_envio.send_keys(Keys.SHIFT , Keys.ENTER)
+                            caixa_texto_envio.send_keys(linha)
+                            caixa_texto_envio.send_keys(Keys.SHIFT , Keys.ENTER)
 
                     caixa_texto_envio.send_keys(Keys.ENTER)
 
                     print(f"✅ Resposta enviada com sucesso!")
+                    
                     time.sleep(2)
 
                     acoes = ActionChains(navegador)
