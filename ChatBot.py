@@ -53,7 +53,6 @@ except TimeoutException:
 
 while True:
     try:
-
         mensagens_nao_lidas = navegador.find_elements(By.XPATH, "//span[contains(@aria-label, 'lida')]")
 
         if len(mensagens_nao_lidas) > 0:
@@ -63,68 +62,83 @@ while True:
             
             bolinha.click()
             time.sleep(3)
-            grupo = navegador.find_elements(By.XPATH, '//*[@id="main"]/header//*[contains(@title, "Dados do grupo") or contains(@aria-label, "Dados do grupo") or contains(@title, "Group info") or contains(@aria-label, "Group info") or @data-icon="default-group"]')
             
-            if grupo:
-                print("🚫 Mensagem de grupo detectada. Ignorando e fechando...")
-                acoes = ActionChains(navegador)
-                acoes.send_keys(Keys.ESCAPE).perform()
-                continue
+            # Pega o último balão de mensagem da conversa que acabou de abrir
+            baloes_recebidos = navegador.find_elements(By.XPATH, "//div[contains(@class, 'message-in')]")
             
-            mensagens = navegador.find_elements(By.XPATH, "//div[contains(@class, 'message-in')]//span[@dir='ltr' or contains(@class, 'selectable-text')]")
-            
-            if mensagens:
-                ultima_mensagem = mensagens[-1].text.lower()
-                mensagem_limpa = ultima_mensagem.strip().replace("!", "").replace("?", "").replace(".", "").replace(",", "")
-
-                print(f"👀 O robô leu a mensagem: '{mensagem_limpa}'")
-
-                saudacoes = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "preciso de ajuda", "menu", "deu erro"]
+            if baloes_recebidos:
+                # Mantemos como "Elemento" do Selenium para poder investigar dentro dele
+                ultimo_balao = baloes_recebidos[-1]
                 
-                if mensagem_limpa in saudacoes:
-                        resposta = ("Olá! Sou o assistente virtual de suporte Insoft.\n\n"
-                                "Para que eu possa te ajudar, por favor, informe qual a sua solicitação:\n"
-                                "A - NFe\n"
-                                "B - Vendas\n"
-                                "C - Outros\n"
-                                "E - Sair")
-
-                elif mensagem_limpa == "a" or mensagem_limpa == "nfe":
-                    resposta = "Entendi que você precisa de ajuda com NFe. Por favor, informe o erro que aparece na tela ou a dúvida que você tem sobre NFe."
-
-                elif mensagem_limpa == "b" or mensagem_limpa == "vendas":
-                    resposta = "Entendi que você precisa de ajuda com vendas. Por favor, informe o erro que aparece na tela ou a dúvida que você tem sobre vendas."
-
-                elif mensagem_limpa == "c" or mensagem_limpa == "outros":
-                    resposta = "Entendi que você precisa de ajuda com outros assuntos. Por favor, informe o erro que aparece na tela ou a dúvida que você tem."
-
-                elif mensagem_limpa == "e" or mensagem_limpa == "sair":
-                    resposta = "Obrigado por entrar em contato com o suporte Insoft. Se precisar de mais ajuda, é só chamar. Tenha um ótimo dia!"
-                    break;
+                # ==========================================
+                # DETECTOR DE GRUPOS DEFINITIVO (@g.us)
+                # ==========================================
+                data_id = ultimo_balao.get_attribute("data-id")
+                if data_id and "@g.us" in data_id:
+                    print("🚫 Mensagem de grupo detectada. Ignorando e fechando...")
+                    acoes = ActionChains(navegador)
+                    acoes.send_keys(Keys.ESCAPE).perform()
+                    continue # Aborta tudo e pula para o próximo cliente
+                # ==========================================
                 
-                else:
-                    resposta = buscar_resposta(ultima_mensagem)
+                # 1. CAPTURANDO DATA E HORA
+                try:
+                    caixa_texto = ultimo_balao.find_element(By.XPATH, ".//div[contains(@class, 'copyable-text')]")
+                    data_hora = caixa_texto.get_attribute("data-pre-plain-text")
+                except:
+                    data_hora = "[Data/Hora não encontrada] "
+                
+                # 2. CAPTURANDO O TEXTO DA MENSAGEM
+                textos = ultimo_balao.find_elements(By.XPATH, ".//span[@dir='ltr' or contains(@class, 'selectable-text')]")
+                
+                if textos:
+                    ultima_mensagem = textos[-1].text.lower()
+                    mensagem_limpa = ultima_mensagem.strip().replace("!", "").replace("?", "").replace(".", "").replace(",", "")
 
-                caixa_texto = navegador.find_element(By.XPATH, '//*[@id="main"]//footer//div[@contenteditable="true"]')
+                    print(f"🕒 {data_hora.strip() if data_hora else ''}")
+                    print(f"👀 O robô leu a mensagem: '{mensagem_limpa}'")
 
-                for linha in resposta.split('\n'):
-                    caixa_texto.send_keys(linha)
-                    caixa_texto.send_keys(Keys.SHIFT , Keys.ENTER)
+                    saudacoes = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "preciso de ajuda", "menu", "deu erro"]
+                    
+                    if mensagem_limpa in saudacoes:
+                            resposta = ("Olá! Sou o assistente virtual de suporte Insoft.\n\n"
+                                    "Para que eu possa te ajudar, por favor, informe qual a sua solicitação:\n"
+                                    "A - NFe\n"
+                                    "B - Vendas\n"
+                                    "C - Outros\n"
+                                    "E - Sair")
 
-                caixa_texto.send_keys(Keys.ENTER)
+                    elif mensagem_limpa == "a" or mensagem_limpa == "nfe":
+                        resposta = "Entendi que você precisa de ajuda com NFe. Por favor, informe o erro que aparece na tela ou a dúvida que você tem sobre NFe."
 
-                print(f"✅ Resposta enviada com sucesso!")
-                time.sleep(2)
+                    elif mensagem_limpa == "b" or mensagem_limpa == "vendas":
+                        resposta = "Entendi que você precisa de ajuda com vendas. Por favor, informe o erro que aparece na tela ou a dúvida que você tem sobre vendas."
 
-                acoes = ActionChains(navegador)
-                acoes.send_keys(Keys.ESCAPE).perform()
+                    elif mensagem_limpa == "c" or mensagem_limpa == "outros":
+                        resposta = "Entendi que você precisa de ajuda com outros assuntos. Por favor, informe o erro que aparece na tela ou a dúvida que você tem."
+
+                    elif mensagem_limpa == "e" or mensagem_limpa == "sair":
+                        resposta = "Obrigado por entrar em contato com o suporte Insoft. Se precisar de mais ajuda, é só chamar. Tenha um ótimo dia!"
+                    
+                    else:
+                        resposta = buscar_resposta(ultima_mensagem)
+
+                    caixa_texto_envio = navegador.find_element(By.XPATH, '//*[@id="main"]//footer//div[@contenteditable="true"]')
+
+                    for linha in resposta.split('\n'):
+                        caixa_texto_envio.send_keys(linha)
+                        caixa_texto_envio.send_keys(Keys.SHIFT , Keys.ENTER)
+
+                    caixa_texto_envio.send_keys(Keys.ENTER)
+
+                    print(f"✅ Resposta enviada com sucesso!")
+                    time.sleep(2)
+
+                    acoes = ActionChains(navegador)
+                    acoes.send_keys(Keys.ESCAPE).perform()
 
             else:
-                baloes = navegador.find_elements(By.XPATH, "//div[contains(@class, 'message-in')]")
-                if baloes:
-                    print(f"❌ Abri a conversa, mas não consegui acessar {baloes[-1].text}.")
-                else:
-                    print("❌ Abri a conversa, mas não consegui ler o texto da mensagem.")
+                print("❌ Abri a conversa, mas não consegui ler o texto da mensagem.")
 
     except TimeoutException:
         pass
