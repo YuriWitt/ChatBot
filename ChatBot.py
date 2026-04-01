@@ -81,29 +81,59 @@ while True:
                 if baloes_recebidos:
                     ultimo_balao = baloes_recebidos[-1]
                     
+                    # ... [Início do bloco onde ele acha o último balão] ...
+                    
                     try:
                         caixa_texto = ultimo_balao.find_element(By.XPATH, ".//div[contains(@class, 'copyable-text')]")
                         data_hora = caixa_texto.get_attribute("data-pre-plain-text")
                     except:
                         data_hora = "[Data/Hora não encontrada] "
                     
-                    # 1. Procurando Textos ou Imagens no último balão
                     textos = ultimo_balao.find_elements(By.XPATH, ".//span[@dir='ltr' or contains(@class, 'selectable-text')]")
-                    imagens = ultimo_balao.find_elements(By.XPATH, ".//img[contains(@src, 'blob')]")
-                    
+                    imagens = ultimo_balao.find_elements(By.XPATH, ".//img[contains(@src, 'blob:')]")
+
+                    # 1️⃣ CORREÇÃO: Zerando as variáveis a cada mensagem lida!
                     ultima_mensagem = ""
+                    mensagem_limpa = ""
+
                     if textos:
                         ultima_mensagem = textos[-1].text.lower()
-                    
-                    mensagem_limpa = ultima_mensagem.strip().replace("!", "").replace("?", "").replace(".", "").replace(",", "")
+                        mensagem_limpa = ultima_mensagem.strip().replace("!", "").replace("?", "").replace(".", "").replace(",", "")
 
                     print(f"🕒 {data_hora.strip() if data_hora else ''}")
+                    
+                    # 2️⃣ CORREÇÃO: Priorizando a IMAGEM. Se tiver foto, ele processa a foto primeiro!
+                    if imagens:
+                        print("📷 Imagem detectada. O robô está processando...")
+                        try:
+                            imagem_elemento = imagens[-1]
+                            caminho_imagem = "imagem_recebida.jpg"
 
-                    # 2. Lógica de Decisão (Texto x Imagem)
-                    if mensagem_limpa:
-                        print(f"👀 O robô leu a mensagem de texto: '{mensagem_limpa}'")
+                            imagem_elemento.screenshot(caminho_imagem)
+
+                            resultado = leitor_imagem.readtext(caminho_imagem, detail=0)
+                            texto_extraido = ' '.join(resultado).lower()
+                            print(f"👀 O robô leu a imagem e extraiu o texto: '{texto_extraido}'")
+
+                            if len(texto_extraido.strip()) > 4:
+                                resposta = buscar_resposta(texto_extraido)
+                                if "Desculpe, não consegui entender sua solicitação" in resposta:
+                                    resposta = "Desculpe, mas não consegui entender o texto extraído da imagem. Por favor, tente enviar uma imagem mais clara ou informe o erro manualmente."  
+                            else:
+                                resposta = "Desculpe, mas o texto extraído da imagem parece estar incompleto ou ilegível. Por favor, tente enviar uma imagem mais clara ou informe o erro manualmente."
+                            
+                            if os.path.exists(caminho_imagem):
+                                os.remove(caminho_imagem)
+
+                        except Exception as e:
+                            print(f"⚠️ Ocorreu um erro ao processar a imagem: {e}")
+                            resposta = "Desculpe, mas ocorreu um erro ao processar a imagem que você enviou. Por favor, tente enviar uma imagem mais clara ou informe o erro manualmente."
+
+                    # 3️⃣ Se não tem imagem, aí sim ele analisa o texto
+                    elif mensagem_limpa:
+                        print(f"👀 O robô leu a mensagem: '{mensagem_limpa}'")
                         saudacoes = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "preciso de ajuda", "menu", "deu erro"]
-                        
+
                         if mensagem_limpa in saudacoes:
                                 resposta = ("Olá! Sou o assistente virtual de suporte Insoft.\n\n"
                                         "Para que eu possa te ajudar, por favor, informe qual a sua solicitação:\n"
@@ -111,53 +141,27 @@ while True:
                                         "B - Vendas\n"
                                         "C - Outros\n"
                                         "E - Sair")
+
                         elif mensagem_limpa in ["a", "nfe"]:
-                            resposta = "Entendi que você precisa de ajuda com NFe. Por favor, informe o erro que aparece na tela ou a dúvida que você tem sobre NFe."
+                            resposta = "Por favor, informe o erro que aparece na tela ou a dúvida que você tem sobre NFe."
+
                         elif mensagem_limpa in ["b", "vendas"]:
-                            resposta = "Entendi que você precisa de ajuda com vendas. Por favor, informe o erro que aparece na tela ou a dúvida que você tem sobre vendas."
+                            resposta = "Por favor, informe o erro que aparece na tela ou a dúvida que você tem sobre vendas."
+
                         elif mensagem_limpa in ["c", "outros"]:
-                            resposta = "Entendi que você precisa de ajuda com outros assuntos. Por favor, informe o erro que aparece na tela ou a dúvida que você tem."
+                            resposta = "Por favor, informe o erro que aparece na tela ou a dúvida que você tem sobre outros assuntos."
+
                         elif mensagem_limpa in ["e", "sair"]:
                             resposta = "Obrigado por entrar em contato com o suporte Insoft. Se precisar de mais ajuda, é só chamar. Tenha um ótimo dia!"
+                        
                         else:
                             resposta = buscar_resposta(ultima_mensagem)
 
-                    elif imagens:
-                        print("📸 Imagem detectada! Iniciando a IA de leitura (OCR)...")
-                        try:
-                            imagem_elemento = imagens[-1]
-                            caminho_imagem = "print_cliente.png"
-                            
-                            # Tira print do balão da imagem
-                            imagem_elemento.screenshot(caminho_imagem)
-                            
-                            # A IA lê a imagem e junta tudo em uma string
-                            resultados_ia = leitor_ia.readtext(caminho_imagem, detail=0)
-                            texto_extraido = " ".join(resultados_ia).lower()
-                            
-                            print(f"🧠 IA extraiu o texto da imagem: '{texto_extraido}'")
-                            
-                            if len(texto_extraido) > 4:
-                                resposta = buscar_resposta(texto_extraido)
-                                if "Desculpe, não consegui entender" in resposta:
-                                    resposta = ("Li a sua imagem, mas não encontrei a solução exata para esse erro na minha base de dados. 😕\n\n"
-                                                "Você poderia digitar apenas o código da rejeição ou a mensagem principal?")
-                            else:
-                                resposta = ("Vi que você mandou uma imagem, mas não consegui identificar nenhum texto legível nela. 🧐\n\n"
-                                            "Por favor, digite a mensagem de erro que aparece na tela.")
-                                            
-                            # Opcional: apaga a imagem do PC depois de ler para não acumular lixo
-                            if os.path.exists(caminho_imagem):
-                                os.remove(caminho_imagem)
-                                
-                        except Exception as e:
-                            print(f"⚠️ Erro ao tentar ler a imagem com IA: {e}")
-                            resposta = "Houve uma falha ao tentar ler a sua imagem. Por favor, digite o erro para que eu possa ajudar!"
-                    
                     else:
-                        print("📎 O robô detectou um formato não suportado.")
-                        resposta = ("Recebi sua mensagem, mas eu só consigo entender textos digitados ou prints de tela. ⌨️📸\n\n"
-                                    "Por favor, digite a sua solicitação ou a mensagem de erro.")
+                        print("❌ Formato não suportado")
+                        resposta = "Desculpe, mas o tipo de mensagem que você enviou não é suportado pelo nosso robô. Por favor, envie uma mensagem de texto ou uma imagem clara do erro que você está enfrentando."
+
+                    # ... [O restante do código que envia a resposta continua igual] ...
 
                     # 3. Enviando a resposta
                     caixa_texto_envio = navegador.find_element(By.XPATH, '//*[@id="main"]//footer//div[@contenteditable="true"]')
