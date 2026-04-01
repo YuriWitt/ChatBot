@@ -59,86 +59,94 @@ while True:
             print(f"🔔 Você tem {len(mensagens_nao_lidas)} mensagens não lidas. O robô está lendo...")
 
         for bolinha in mensagens_nao_lidas:
-            
-            bolinha.click()
-            time.sleep(3)
-            
-            # Pega o último balão de mensagem da conversa que acabou de abrir
-            baloes_recebidos = navegador.find_elements(By.XPATH, "//div[contains(@class, 'message-in')]")
-            
-            if baloes_recebidos:
-                # Mantemos como "Elemento" do Selenium para poder investigar dentro dele
-                ultimo_balao = baloes_recebidos[-1]
+            try: # <- NOVO: Proteção contra o "Stale Element" (página piscando)
+                
+                bolinha.click()
+                time.sleep(2)
                 
                 # ==========================================
-                # DETECTOR DE GRUPOS DEFINITIVO (@g.us)
+                # DETECTOR DE GRUPOS DEFINITIVO 
+                # Procura a etiqueta @g.us em qualquer lugar da conversa aberta!
                 # ==========================================
-                data_id = ultimo_balao.get_attribute("data-id")
-                if data_id and "@g.us" in data_id:
+                grupo_check = navegador.find_elements(By.XPATH, '//*[@id="main"]//div[contains(@data-id, "@g.us")]')
+                if grupo_check:
                     print("🚫 Mensagem de grupo detectada. Ignorando e fechando...")
                     acoes = ActionChains(navegador)
                     acoes.send_keys(Keys.ESCAPE).perform()
-                    continue # Aborta tudo e pula para o próximo cliente
+                    time.sleep(1)
+                    continue
                 # ==========================================
                 
-                # 1. CAPTURANDO DATA E HORA
-                try:
-                    caixa_texto = ultimo_balao.find_element(By.XPATH, ".//div[contains(@class, 'copyable-text')]")
-                    data_hora = caixa_texto.get_attribute("data-pre-plain-text")
-                except:
-                    data_hora = "[Data/Hora não encontrada] "
+                baloes_recebidos = navegador.find_elements(By.XPATH, "//div[contains(@class, 'message-in')]")
                 
-                # 2. CAPTURANDO O TEXTO DA MENSAGEM
-                textos = ultimo_balao.find_elements(By.XPATH, ".//span[@dir='ltr' or contains(@class, 'selectable-text')]")
-                
-                if textos:
-                    ultima_mensagem = textos[-1].text.lower()
-                    mensagem_limpa = ultima_mensagem.strip().replace("!", "").replace("?", "").replace(".", "").replace(",", "")
-
-                    print(f"🕒 {data_hora.strip() if data_hora else ''}")
-                    print(f"👀 O robô leu a mensagem: '{mensagem_limpa}'")
-
-                    saudacoes = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "preciso de ajuda", "menu", "deu erro"]
+                if baloes_recebidos:
+                    ultimo_balao = baloes_recebidos[-1]
                     
-                    if mensagem_limpa in saudacoes:
-                            resposta = ("Olá! Sou o assistente virtual de suporte Insoft.\n\n"
-                                    "Para que eu possa te ajudar, por favor, informe qual a sua solicitação:\n"
-                                    "A - NFe\n"
-                                    "B - Vendas\n"
-                                    "C - Outros\n"
-                                    "E - Sair")
-
-                    elif mensagem_limpa == "a" or mensagem_limpa == "nfe":
-                        resposta = "Entendi que você precisa de ajuda com NFe. Por favor, informe o erro que aparece na tela ou a dúvida que você tem sobre NFe."
-
-                    elif mensagem_limpa == "b" or mensagem_limpa == "vendas":
-                        resposta = "Entendi que você precisa de ajuda com vendas. Por favor, informe o erro que aparece na tela ou a dúvida que você tem sobre vendas."
-
-                    elif mensagem_limpa == "c" or mensagem_limpa == "outros":
-                        resposta = "Entendi que você precisa de ajuda com outros assuntos. Por favor, informe o erro que aparece na tela ou a dúvida que você tem."
-
-                    elif mensagem_limpa == "e" or mensagem_limpa == "sair":
-                        resposta = "Obrigado por entrar em contato com o suporte Insoft. Se precisar de mais ajuda, é só chamar. Tenha um ótimo dia!"
+                    try:
+                        caixa_texto = ultimo_balao.find_element(By.XPATH, ".//div[contains(@class, 'copyable-text')]")
+                        data_hora = caixa_texto.get_attribute("data-pre-plain-text")
+                    except:
+                        data_hora = "[Data/Hora não encontrada] "
                     
-                    else:
-                        resposta = buscar_resposta(ultima_mensagem)
+                    textos = ultimo_balao.find_elements(By.XPATH, ".//span[@dir='ltr' or contains(@class, 'selectable-text')]")
+                    
+                    if textos:
+                        ultima_mensagem = textos[-1].text.lower()
+                        mensagem_limpa = ultima_mensagem.strip().replace("!", "").replace("?", "").replace(".", "").replace(",", "")
 
-                    caixa_texto_envio = navegador.find_element(By.XPATH, '//*[@id="main"]//footer//div[@contenteditable="true"]')
+                        print(f"🕒 {data_hora.strip() if data_hora else ''}")
+                        print(f"👀 O robô leu a mensagem: '{mensagem_limpa}'")
 
-                    for linha in resposta.split('\n'):
-                        caixa_texto_envio.send_keys(linha)
-                        caixa_texto_envio.send_keys(Keys.SHIFT , Keys.ENTER)
+                        saudacoes = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "preciso de ajuda", "menu", "deu erro"]
+                        
+                        if mensagem_limpa in saudacoes:
+                                resposta = ("Olá! Sou o assistente virtual de suporte Insoft.\n\n"
+                                        "Para que eu possa te ajudar, por favor, informe qual a sua solicitação:\n"
+                                        "A - NFe\n"
+                                        "B - Vendas\n"
+                                        "C - Outros\n"
+                                        "E - Sair")
 
-                    caixa_texto_envio.send_keys(Keys.ENTER)
+                        elif mensagem_limpa == "a" or mensagem_limpa == "nfe":
+                            resposta = "Entendi que você precisa de ajuda com NFe. Por favor, informe o erro que aparece na tela ou a dúvida que você tem sobre NFe."
 
-                    print(f"✅ Resposta enviada com sucesso!")
-                    time.sleep(2)
+                        elif mensagem_limpa == "b" or mensagem_limpa == "vendas":
+                            resposta = "Entendi que você precisa de ajuda com vendas. Por favor, informe o erro que aparece na tela ou a dúvida que você tem sobre vendas."
 
+                        elif mensagem_limpa == "c" or mensagem_limpa == "outros":
+                            resposta = "Entendi que você precisa de ajuda com outros assuntos. Por favor, informe o erro que aparece na tela ou a dúvida que você tem."
+
+                        elif mensagem_limpa == "e" or mensagem_limpa == "sair":
+                            resposta = "Obrigado por entrar em contato com o suporte Insoft. Se precisar de mais ajuda, é só chamar. Tenha um ótimo dia!"
+                        
+                        else:
+                            resposta = buscar_resposta(ultima_mensagem)
+
+                        caixa_texto_envio = navegador.find_element(By.XPATH, '//*[@id="main"]//footer//div[@contenteditable="true"]')
+
+                        for linha in resposta.split('\n'):
+                            caixa_texto_envio.send_keys(linha)
+                            caixa_texto_envio.send_keys(Keys.SHIFT , Keys.ENTER)
+
+                        caixa_texto_envio.send_keys(Keys.ENTER)
+
+                        print(f"✅ Resposta enviada com sucesso!")
+                        time.sleep(2)
+
+                        acoes = ActionChains(navegador)
+                        acoes.send_keys(Keys.ESCAPE).perform()
+
+                else:
+                    print("❌ Abri a conversa, mas não consegui ler o texto da mensagem.")
                     acoes = ActionChains(navegador)
                     acoes.send_keys(Keys.ESCAPE).perform()
 
-            else:
-                print("❌ Abri a conversa, mas não consegui ler o texto da mensagem.")
+            except StaleElementReferenceException:
+                # Se o WhatsApp piscar e perder a referência, ele avisa, fecha e tenta de novo na próxima rodada!
+                print("⚠️ A página do WhatsApp atualizou enquanto o robô lia. Recalculando...")
+                acoes = ActionChains(navegador)
+                acoes.send_keys(Keys.ESCAPE).perform()
+                continue
 
     except TimeoutException:
         pass
