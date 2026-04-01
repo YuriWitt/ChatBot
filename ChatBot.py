@@ -3,7 +3,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import StaleElementReferenceException, TimeoutException
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.chrome.service import Service
@@ -14,7 +14,7 @@ import time
 
 def buscar_resposta(mensagem):
     try:
-        df = pd.read_excel(r'R:\Sistemas\Manuais\BC.xlsx')
+        df = pd.read_excel(r'R:\Sistemas\Manuais\Base_De_Conhecimento.xlsx')
         df.columns = df.columns.str.strip()
         base_dados = dict(zip(df['Rejeição'].astype(str), df['Solução & Informações Adicionais'].astype(str)))
     except Exception as e:
@@ -26,10 +26,10 @@ def buscar_resposta(mensagem):
     preguntas = list(base_dados.keys())
     resposta, score, _ = process.extractOne(mensagem, preguntas)
 
-    if score >= 70:
+    if score >= 80:
         return base_dados[resposta]
-    return "Desculpe, não consegui encontrar uma resposta adequada para a sua pergunta. " \
-        "Por favor, tente informar o erro que aparece na tela."
+    return "Desculpe, não consegui entender sua solicitação... " \
+        "Por favor, tente informar a mensagem de erro que aparece na tela."
 
 print("Chatbot iniciado. Digite 'sair' para encerrar a conversa.")
 chrome_options = Options()
@@ -59,15 +59,11 @@ while True:
             print(f"🔔 Você tem {len(mensagens_nao_lidas)} mensagens não lidas. O robô está lendo...")
 
         for bolinha in mensagens_nao_lidas:
-            try: # <- NOVO: Proteção contra o "Stale Element" (página piscando)
+            try:
                 
                 bolinha.click()
                 time.sleep(2)
                 
-                # ==========================================
-                # DETECTOR DE GRUPOS DEFINITIVO 
-                # Procura a etiqueta @g.us em qualquer lugar da conversa aberta!
-                # ==========================================
                 grupo_check = navegador.find_elements(By.XPATH, '//*[@id="main"]//div[contains(@data-id, "@g.us")]')
                 if grupo_check:
                     print("🚫 Mensagem de grupo detectada. Ignorando e fechando...")
@@ -75,7 +71,6 @@ while True:
                     acoes.send_keys(Keys.ESCAPE).perform()
                     time.sleep(1)
                     continue
-                # ==========================================
                 
                 baloes_recebidos = navegador.find_elements(By.XPATH, "//div[contains(@class, 'message-in')]")
                 
@@ -142,7 +137,6 @@ while True:
                     acoes.send_keys(Keys.ESCAPE).perform()
 
             except StaleElementReferenceException:
-                # Se o WhatsApp piscar e perder a referência, ele avisa, fecha e tenta de novo na próxima rodada!
                 print("⚠️ A página do WhatsApp atualizou enquanto o robô lia. Recalculando...")
                 acoes = ActionChains(navegador)
                 acoes.send_keys(Keys.ESCAPE).perform()
