@@ -38,7 +38,7 @@ def buscar_resposta(mensagem):
 print("Chatbot iniciado. Digite 'sair' para encerrar a conversa.")
 
 print("Carregando IA para leitura de imagens...")
-leitor_imagem = easyocr.Reader(['pt'])
+leitor_imagem = easyocr.Reader(['pt-br'], gpu=False)
 print("IA de leitura de imagens carregada com sucesso!")
 
 chrome_options = Options()
@@ -58,7 +58,6 @@ except TimeoutException:
     navegador.quit()
     exit()
 
-# Dicionário para guardar em qual etapa do atendimento cada cliente está
 estado_usuarios = {}
 
 while True:
@@ -81,7 +80,6 @@ while True:
                     time.sleep(1)
                     continue
                 
-                # Tenta pegar o nome do contato para saber quem está falando
                 try:
                     nome_contato = navegador.find_element(By.XPATH, '//*[@id="main"]//header//span[@dir="auto"]').text
                 except:
@@ -110,23 +108,20 @@ while True:
 
                     print(f"🕒 {data_hora.strip() if data_hora else ''}")
                     
-                    # Verifica o estado atual do cliente
                     estado_atual = estado_usuarios.get(nome_contato)
 
-                    # SE O CLIENTE ESTIVER NA ETAPA DE CONFIRMAR SE RESOLVEU:
                     if estado_atual == "AGUARDANDO_CONFIRMACAO":
                         if mensagem_limpa in ["sim", "s"]:
                             resposta = "Ótimo! Fico feliz em ter ajudado. O seu atendimento foi encerrado. Tenha um excelente dia!"
-                            estado_usuarios.pop(nome_contato, None) # Remove da memória, volta pro início
+                            estado_usuarios.pop(nome_contato, None)
                             
                         elif mensagem_limpa in ["nao", "não", "n", "nao resolveu", "não resolveu"]:
                             resposta = "Certo, entendi. Estou encaminhando o seu caso para um de nossos atendentes. Por favor, aguarde um momento."
-                            estado_usuarios.pop(nome_contato, None) # Remove da memória
+                            estado_usuarios.pop(nome_contato, None)
                             
                         else:
                             resposta = "Por favor, responda apenas com *Sim* ou *Não*. A solução que enviei anteriormente resolveu o seu problema?"
 
-                    # SE FOR UMA CONVERSA NORMAL:
                     else:
                         if imagens:
                             print("📷 Imagem detectada. O robô está processando...")
@@ -137,8 +132,20 @@ while True:
                                 imagem_elemento.screenshot(caminho_imagem)
 
                                 resultado = leitor_imagem.readtext(caminho_imagem, detail=0)
-                                texto_extraido = ' '.join(resultado).lower()
-                                print(f"👀 O robô leu a imagem e extraiu o texto: '{texto_extraido}'")
+                                texto_completo = ' '.join(resultado).lower()
+                                
+                                # LÓGICA NOVA: Prioriza o texto DEPOIS da palavra "rejeição"
+                                if "rejeição" in texto_completo:
+                                    texto_extraido = texto_completo.split("rejeição", 1)[1]
+                                elif "rejeicao" in texto_completo:
+                                    texto_extraido = texto_completo.split("rejeicao", 1)[1]
+                                else:
+                                    texto_extraido = texto_completo
+                                
+                                # Remove possíveis dois pontos, traços ou espaços no início da frase cortada
+                                texto_extraido = texto_extraido.strip(' :-=>')
+
+                                print(f"👀 O robô filtrou a imagem e buscará por: '{texto_extraido}'")
 
                                 if len(texto_extraido.strip()) > 4:
                                     resposta = buscar_resposta(texto_extraido)
@@ -146,12 +153,11 @@ while True:
                                     if "Desculpe, não consegui entender sua solicitação" in resposta:
                                         resposta = "Desculpe, não encontrei a solução para o erro mostrado na imagem. Por favor, tente enviar uma foto mais nítida ou digite o erro manualmente."
                                     else:
-                                        # Achou a solução na imagem! Adiciona a pergunta final e muda o status.
                                         resposta += "\n\nEssa solução resolveu o seu problema? (Responda *Sim* ou *Não*)"
                                         estado_usuarios[nome_contato] = "AGUARDANDO_CONFIRMACAO"
                                         
                                 else:
-                                    resposta = "Desculpe, mas a imagem parece estar ilegível ou sem texto. Por favor, tente enviar uma imagem mais clara ou informe o erro manualmente."
+                                    resposta = "Desculpe, mas a imagem parece estar ilegível ou sem texto de erro. Por favor, tente enviar uma imagem mais clara ou informe o erro manualmente."
                                 
                                 if os.path.exists(caminho_imagem):
                                     os.remove(caminho_imagem)
@@ -187,7 +193,6 @@ while True:
                             else:
                                 resposta = buscar_resposta(ultima_mensagem)
                                 
-                                # Se a resposta for uma solução encontrada no Excel, adiciona a pergunta.
                                 if "Desculpe" not in resposta:
                                     resposta += "\n\nEssa solução resolveu o seu problema? (Responda *Sim* ou *Não*)"
                                     estado_usuarios[nome_contato] = "AGUARDANDO_CONFIRMACAO"
@@ -196,7 +201,7 @@ while True:
                             print("❌ Formato não suportado")
                             resposta = "Desculpe, mas o tipo de mensagem que você enviou não é suportado pelo nosso robô. Por favor, envie uma mensagem de texto ou uma imagem clara do erro que você está enfrentando."
 
-                    # Envio da mensagem com o filtro anti-erro (BMP)
+                    
                     caixa_texto_envio = navegador.find_element(By.XPATH, '//*[@id="main"]//footer//div[@contenteditable="true"]')
 
                     for linha in resposta.split('\n'):
