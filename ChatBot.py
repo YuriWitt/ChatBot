@@ -10,7 +10,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 import pandas as pd
-from rapidfuzz import process
+from rapidfuzz import process, fuzz
 import time
 import easyocr
 import os
@@ -31,9 +31,11 @@ def buscar_resposta(mensagem):
         return "Base de dados vazia ou não encontrada."
     
     preguntas = list(base_dados.keys())
-    resposta, score, _ = process.extractOne(mensagem, preguntas)
+    
+    resposta, score, _ = process.extractOne(mensagem, preguntas, scorer=fuzz.token_set_ratio)
 
-    # Tolerância de 60 para aceitar pequenos erros de leitura do OCR
+    print(f"[DEBUG DA IA] Match encontrado: '{resposta}' | Pontuação: {score}")
+
     if score >= 70:
         return base_dados[resposta]
     return "Desculpe, não consegui entender sua solicitação... \nPor favor, tente informar a mensagem de erro que aparece na tela."
