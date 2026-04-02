@@ -114,11 +114,11 @@ while True:
                     print(f"🕒 {data_hora.strip() if data_hora else ''}")
                     
                     estado_atual = estado_usuarios.get(nome_contato)
-
+                    
                     if estado_atual == "AGUARDANDO_CONFIRMACAO":
                         if mensagem_limpa in ["sim", "s"]:
-                            resposta = "Ótimo! Fico feliz em ter ajudado. O seu atendimento foi encerrado. Tenha um excelente dia!"
-                            estado_usuarios.pop(nome_contato, None)
+                            resposta = "Ótimo! Fico feliz em ter ajudado.\n\nPara nos ajudar a melhorar, como você avalia o meu atendimento de *1 a 5*? (Sendo 1 Ruim e 5 Excelente)"
+                            estado_usuarios[nome_contato] = "AGUARDANDO_AVALIACAO"
                             
                         elif mensagem_limpa in ["nao", "não", "n", "nao resolveu", "não resolveu"]:
                             resposta = "Certo, entendi. Estou encaminhando o seu caso para um de nossos atendentes. Por favor, aguarde um momento."
@@ -126,6 +126,14 @@ while True:
                             
                         else:
                             resposta = "Por favor, responda apenas com *Sim* ou *Não*. A solução que enviei anteriormente resolveu o seu problema?"
+
+                    elif estado_atual == "AGUARDANDO_AVALIACAO":
+                        if mensagem_limpa in ["1", "2", "3", "4", "5"]:
+                            resposta = "Muito obrigado pela sua avaliação! Seu feedback é fundamental para nós. O seu atendimento foi encerrado. Tenha um excelente dia!"
+                            print(f"⭐ AVALIAÇÃO: O cliente '{nome_contato}' avaliou o atendimento com nota {mensagem_limpa}!")
+                            estado_usuarios.pop(nome_contato, None)
+                        else:
+                            resposta = "Por favor, digite apenas um número de *1 a 5* para avaliar o atendimento."
 
                     else:
                         if imagens:
@@ -209,7 +217,8 @@ while True:
                                 resposta = "Por favor, informe o erro que aparece na tela ou a dúvida que você tem sobre outros assuntos."
 
                             elif mensagem_limpa in ["e", "sair"]:
-                                resposta = "Obrigado por entrar em contato com o suporte Insoft. Se precisar de mais ajuda, é só chamar. Tenha um ótimo dia!"
+                                resposta = "O seu atendimento está sendo encerrado.\n\nPara nos ajudar a melhorar, como você avalia o meu atendimento de *1 a 5*? (Sendo 1 Ruim e 5 Excelente)"
+                                estado_usuarios[nome_contato] = "AGUARDANDO_AVALIACAO"
                             
                             else:
                                 resposta = buscar_resposta(ultima_mensagem)
