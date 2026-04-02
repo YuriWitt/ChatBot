@@ -15,7 +15,6 @@ import time
 import easyocr
 import os
 
-# Ignora o aviso vermelho/amarelo do PyTorch sobre a placa de vídeo
 warnings.filterwarnings("ignore", category=UserWarning)
 
 def buscar_resposta(mensagem):
@@ -32,7 +31,6 @@ def buscar_resposta(mensagem):
     preguntas = list(base_dados.keys())
     resposta, score, _ = process.extractOne(mensagem, preguntas)
 
-    # Aumentado para 85 para evitar que o robô dê "chutes" errados e mande soluções incorretas
     if score >= 85:
         return base_dados[resposta]
     return "Desculpe, não consegui entender sua solicitação... \nPor favor, tente informar a mensagem de erro que aparece na tela."
@@ -60,6 +58,9 @@ except TimeoutException:
     navegador.quit()
     exit()
 
+# Dicionário para guardar em qual etapa do atendimento cada cliente está
+estado_usuarios = {}
+
 while True:
     try:
         mensagens_nao_lidas = navegador.find_elements(By.XPATH, "//span[contains(@aria-label, 'lida')]")
@@ -80,6 +81,12 @@ while True:
                     time.sleep(1)
                     continue
                 
+                # Tenta pegar o nome do contato para saber quem está falando
+                try:
+                    nome_contato = navegador.find_element(By.XPATH, '//*[@id="main"]//header//span[@dir="auto"]').text
+                except:
+                    nome_contato = "Cliente_Desconhecido"
+
                 baloes_recebidos = navegador.find_elements(By.XPATH, "//div[contains(@class, 'message-in')]")
                 
                 if baloes_recebidos:
@@ -103,69 +110,96 @@ while True:
 
                     print(f"🕒 {data_hora.strip() if data_hora else ''}")
                     
-                    if imagens:
-                        print("📷 Imagem detectada. O robô está processando...")
-                        try:
-                            imagem_elemento = imagens[-1]
-                            caminho_imagem = "imagem_recebida.png"
+                    # Verifica o estado atual do cliente
+                    estado_atual = estado_usuarios.get(nome_contato)
 
-                            imagem_elemento.screenshot(caminho_imagem)
-
-                            resultado = leitor_imagem.readtext(caminho_imagem, detail=0)
-                            texto_extraido = ' '.join(resultado).lower()
-                            print(f"👀 O robô leu a imagem e extraiu o texto: '{texto_extraido}'")
-
-                            if len(texto_extraido.strip()) > 4:
-                                resposta = buscar_resposta(texto_extraido)
-                                
-                                if "Desculpe, não consegui entender sua solicitação" in resposta:
-                                    resposta = "Desculpe, não encontrei a solução para o erro mostrado na imagem. Por favor, tente enviar uma foto mais nítida ou digite o erro manualmente."
-                                    
-                            else:
-                                resposta = "Desculpe, mas a imagem parece estar ilegível ou sem texto. Por favor, tente enviar uma imagem mais clara ou informe o erro manualmente."
+                    # SE O CLIENTE ESTIVER NA ETAPA DE CONFIRMAR SE RESOLVEU:
+                    if estado_atual == "AGUARDANDO_CONFIRMACAO":
+                        if mensagem_limpa in ["sim", "s"]:
+                            resposta = "Ótimo! Fico feliz em ter ajudado. O seu atendimento foi encerrado. Tenha um excelente dia!"
+                            estado_usuarios.pop(nome_contato, None) # Remove da memória, volta pro início
                             
-                            if os.path.exists(caminho_imagem):
-                                os.remove(caminho_imagem)
-
-                        except Exception as e:
-                            print(f"⚠️ Ocorreu um erro ao processar a imagem: {e}")
-                            resposta = "Desculpe, mas ocorreu um erro interno ao processar a imagem. Por favor, digite o erro manualmente."
-
-                    elif mensagem_limpa:
-                        print(f"👀 O robô leu a mensagem: '{mensagem_limpa}'")
-                        saudacoes = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "preciso de ajuda", "menu", "deu erro"]
-
-                        if mensagem_limpa in saudacoes:
-                                resposta = ("Olá! Sou o assistente virtual de suporte Insoft.\n\n"
-                                        "Para que eu possa te ajudar, por favor, informe qual a sua solicitação:\n"
-                                        "A - NFe\n"
-                                        "B - Vendas\n"
-                                        "C - Outros\n"
-                                        "E - Sair")
-
-                        elif mensagem_limpa in ["a", "nfe"]:
-                            resposta = "Por favor, informe o erro que aparece na tela ou a dúvida que você tem sobre NFe."
-
-                        elif mensagem_limpa in ["b", "vendas"]:
-                            resposta = "Por favor, informe o erro que aparece na tela ou a dúvida que você tem sobre vendas."
-
-                        elif mensagem_limpa in ["c", "outros"]:
-                            resposta = "Por favor, informe o erro que aparece na tela ou a dúvida que você tem sobre outros assuntos."
-
-                        elif mensagem_limpa in ["e", "sair"]:
-                            resposta = "Obrigado por entrar em contato com o suporte Insoft. Se precisar de mais ajuda, é só chamar. Tenha um ótimo dia!"
-                        
+                        elif mensagem_limpa in ["nao", "não", "n", "nao resolveu", "não resolveu"]:
+                            resposta = "Certo, entendi. Estou encaminhando o seu caso para um de nossos atendentes. Por favor, aguarde um momento."
+                            estado_usuarios.pop(nome_contato, None) # Remove da memória
+                            
                         else:
-                            resposta = buscar_resposta(ultima_mensagem)
+                            resposta = "Por favor, responda apenas com *Sim* ou *Não*. A solução que enviei anteriormente resolveu o seu problema?"
 
+                    # SE FOR UMA CONVERSA NORMAL:
                     else:
-                        print("❌ Formato não suportado")
-                        resposta = "Desculpe, mas o tipo de mensagem que você enviou não é suportado pelo nosso robô. Por favor, envie uma mensagem de texto ou uma imagem clara do erro que você está enfrentando."
+                        if imagens:
+                            print("📷 Imagem detectada. O robô está processando...")
+                            try:
+                                imagem_elemento = imagens[-1]
+                                caminho_imagem = "imagem_recebida.png"
 
+                                imagem_elemento.screenshot(caminho_imagem)
+
+                                resultado = leitor_imagem.readtext(caminho_imagem, detail=0)
+                                texto_extraido = ' '.join(resultado).lower()
+                                print(f"👀 O robô leu a imagem e extraiu o texto: '{texto_extraido}'")
+
+                                if len(texto_extraido.strip()) > 4:
+                                    resposta = buscar_resposta(texto_extraido)
+                                    
+                                    if "Desculpe, não consegui entender sua solicitação" in resposta:
+                                        resposta = "Desculpe, não encontrei a solução para o erro mostrado na imagem. Por favor, tente enviar uma foto mais nítida ou digite o erro manualmente."
+                                    else:
+                                        # Achou a solução na imagem! Adiciona a pergunta final e muda o status.
+                                        resposta += "\n\nEssa solução resolveu o seu problema? (Responda *Sim* ou *Não*)"
+                                        estado_usuarios[nome_contato] = "AGUARDANDO_CONFIRMACAO"
+                                        
+                                else:
+                                    resposta = "Desculpe, mas a imagem parece estar ilegível ou sem texto. Por favor, tente enviar uma imagem mais clara ou informe o erro manualmente."
+                                
+                                if os.path.exists(caminho_imagem):
+                                    os.remove(caminho_imagem)
+
+                            except Exception as e:
+                                print(f"⚠️ Ocorreu um erro ao processar a imagem: {e}")
+                                resposta = "Desculpe, mas ocorreu um erro interno ao processar a imagem. Por favor, digite o erro manualmente."
+
+                        elif mensagem_limpa:
+                            print(f"👀 O robô leu a mensagem: '{mensagem_limpa}'")
+                            saudacoes = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "preciso de ajuda", "menu", "deu erro"]
+
+                            if mensagem_limpa in saudacoes:
+                                    resposta = ("Olá! Sou o assistente virtual de suporte Insoft.\n\n"
+                                            "Para que eu possa te ajudar, por favor, informe qual a sua solicitação:\n"
+                                            "A - NFe\n"
+                                            "B - Vendas\n"
+                                            "C - Outros\n"
+                                            "E - Sair")
+
+                            elif mensagem_limpa in ["a", "nfe"]:
+                                resposta = "Por favor, informe o erro que aparece na tela ou a dúvida que você tem sobre NFe."
+
+                            elif mensagem_limpa in ["b", "vendas"]:
+                                resposta = "Por favor, informe o erro que aparece na tela ou a dúvida que você tem sobre vendas."
+
+                            elif mensagem_limpa in ["c", "outros"]:
+                                resposta = "Por favor, informe o erro que aparece na tela ou a dúvida que você tem sobre outros assuntos."
+
+                            elif mensagem_limpa in ["e", "sair"]:
+                                resposta = "Obrigado por entrar em contato com o suporte Insoft. Se precisar de mais ajuda, é só chamar. Tenha um ótimo dia!"
+                            
+                            else:
+                                resposta = buscar_resposta(ultima_mensagem)
+                                
+                                # Se a resposta for uma solução encontrada no Excel, adiciona a pergunta.
+                                if "Desculpe" not in resposta:
+                                    resposta += "\n\nEssa solução resolveu o seu problema? (Responda *Sim* ou *Não*)"
+                                    estado_usuarios[nome_contato] = "AGUARDANDO_CONFIRMACAO"
+
+                        else:
+                            print("❌ Formato não suportado")
+                            resposta = "Desculpe, mas o tipo de mensagem que você enviou não é suportado pelo nosso robô. Por favor, envie uma mensagem de texto ou uma imagem clara do erro que você está enfrentando."
+
+                    # Envio da mensagem com o filtro anti-erro (BMP)
                     caixa_texto_envio = navegador.find_element(By.XPATH, '//*[@id="main"]//footer//div[@contenteditable="true"]')
 
                     for linha in resposta.split('\n'):
-                        # FILTRO APLICADO: Evita erro de BMP removendo caracteres que o Selenium não entende
                         linha_sem_emoji = "".join(c for c in linha if ord(c) <= 0xFFFF)
                         caixa_texto_envio.send_keys(linha_sem_emoji)
                         caixa_texto_envio.send_keys(Keys.SHIFT , Keys.ENTER)
