@@ -136,12 +136,19 @@ while True:
 
                                 # --- INÍCIO DO TRATAMENTO DA IMAGEM PARA MELHORAR LEITURA ---
                                 img = cv2.imread(caminho_imagem)
-                                # Aumenta a imagem em 2x
-                                img = cv2.resize(img, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-                                # Transforma em Tons de Cinza
+                                
+                                # 1. Transforma em Tons de Cinza
                                 cinza = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                                # Remove o fundo (binarização), foca só no texto preto
-                                _, img_tratada = cv2.threshold(cinza, 130, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+                                
+                                # 2. Aplica um desfoque leve (Blur) para sumir com as "linhas" do monitor (Efeito Moiré)
+                                desfoque = cv2.GaussianBlur(cinza, (5, 5), 0)
+                                
+                                # 3. Aumenta a imagem DEPOIS de desfocar as linhas
+                                ampliada = cv2.resize(desfoque, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+                                
+                                # 4. Binarização Adaptativa (Excelente para fotos de tela que têm reflexo ou brilho irregular)
+                                img_tratada = cv2.adaptiveThreshold(ampliada, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+                                
                                 cv2.imwrite(caminho_imagem, img_tratada)
                                 # --- FIM DO TRATAMENTO DA IMAGEM ---
 
