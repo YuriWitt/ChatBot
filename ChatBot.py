@@ -36,7 +36,7 @@ def buscar_resposta(mensagem):
 
     print(f"[DEBUG DA IA] Match encontrado: '{resposta}' | Pontuação: {score}")
 
-    if score >= 70:
+    if score >= 60:
         return base_dados[resposta]
     return "Desculpe, não consegui entender sua solicitação... \nPor favor, tente informar a mensagem de erro que aparece na tela."
 
@@ -108,9 +108,12 @@ while True:
                     mensagem_limpa = ""
 
                     if textos:
-                        ultima_mensagem = textos[-1].text.lower()
-                        mensagem_limpa = ultima_mensagem.strip().replace("!", "").replace("?", "").replace(".", "").replace(",", "")
-
+                        textos_validos = [t.text.lower() for t in textos if t.text.strip() != ""]
+                        
+                        if textos_validos:
+                            ultima_mensagem = textos_validos[-1]
+                            mensagem_limpa = ultima_mensagem.replace("!", "").replace("?", "").replace(".", "").replace(",", "")
+                            
                     print(f"🕒 {data_hora.strip() if data_hora else ''}")
                     
                     estado_atual = estado_usuarios.get(nome_contato)
@@ -128,11 +131,16 @@ while True:
                             resposta = "Por favor, responda apenas com *Sim* ou *Não*. A solução que enviei anteriormente resolveu o seu problema?"
 
                     elif estado_atual == "AGUARDANDO_AVALIACAO":
-                        if mensagem_limpa in ["1", "2", "3", "4", "5"]:
+                        match_nota = re.search(r"[1-5]", mensagem_limpa)
+                        
+                        if match_nota:
+                            nota = match_nota.group(0)
                             resposta = "Muito obrigado pela sua avaliação! Seu feedback é fundamental para nós. O seu atendimento foi encerrado. Tenha um excelente dia!"
-                            print(f"⭐ AVALIAÇÃO: O cliente '{nome_contato}' avaliou o atendimento com nota {mensagem_limpa}!")
+                            print(f"⭐ AVALIAÇÃO: O cliente '{nome_contato}' avaliou o atendimento com nota {nota}!")
                             estado_usuarios.pop(nome_contato, None)
                         else:
+                            
+                            print(f"⚠️ O robô não encontrou um número de 1 a 5. O texto lido foi: '{mensagem_limpa}'")
                             resposta = "Por favor, digite apenas um número de *1 a 5* para avaliar o atendimento."
 
                     else:
