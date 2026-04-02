@@ -32,8 +32,8 @@ def buscar_resposta(mensagem):
     preguntas = list(base_dados.keys())
     resposta, score, _ = process.extractOne(mensagem, preguntas)
 
-    # ALTERAÇÃO 1: Reduzido de 100 para 75 para perdoar erros de leitura da IA
-    if score >= 75:
+    # Aumentado para 85 para evitar que o robô dê "chutes" errados e mande soluções incorretas
+    if score >= 85:
         return base_dados[resposta]
     return "Desculpe, não consegui entender sua solicitação... \nPor favor, tente informar a mensagem de erro que aparece na tela."
 
@@ -103,7 +103,6 @@ while True:
 
                     print(f"🕒 {data_hora.strip() if data_hora else ''}")
                     
-                    # ALTERAÇÃO 2: Bloco de imagem atualizado para enviar o texto lido ao cliente
                     if imagens:
                         print("📷 Imagem detectada. O robô está processando...")
                         try:
@@ -117,25 +116,20 @@ while True:
                             print(f"👀 O robô leu a imagem e extraiu o texto: '{texto_extraido}'")
 
                             if len(texto_extraido.strip()) > 4:
-                                resposta_banco = buscar_resposta(texto_extraido)
+                                resposta = buscar_resposta(texto_extraido)
                                 
-                                if "Desculpe, não consegui entender sua solicitação" in resposta_banco:
-                                    resposta = (f"🔍 *Texto que consegui ler na imagem:*\n_{texto_extraido}_\n\n"
-                                                f"⚠️ *Aviso:*\nNão encontrei esse erro na minha base de dados. "
-                                                f"Por favor, tente enviar uma imagem mais clara ou digite o erro manualmente.")
-                                else:
-                                    resposta = (f"🔍 *Texto que consegui ler na imagem:*\n_{texto_extraido}_\n\n"
-                                                f"✅ *Solução Encontrada:*\n{resposta_banco}")
+                                if "Desculpe, não consegui entender sua solicitação" in resposta:
+                                    resposta = "Desculpe, não encontrei a solução para o erro mostrado na imagem. Por favor, tente enviar uma foto mais nítida ou digite o erro manualmente."
                                     
                             else:
-                                resposta = "Desculpe, mas o texto extraído da imagem parece estar incompleto ou ilegível. Por favor, tente enviar uma imagem mais clara ou informe o erro manualmente."
+                                resposta = "Desculpe, mas a imagem parece estar ilegível ou sem texto. Por favor, tente enviar uma imagem mais clara ou informe o erro manualmente."
                             
                             if os.path.exists(caminho_imagem):
                                 os.remove(caminho_imagem)
 
                         except Exception as e:
                             print(f"⚠️ Ocorreu um erro ao processar a imagem: {e}")
-                            resposta = "Desculpe, mas ocorreu um erro ao processar a imagem que você enviou. Por favor, tente enviar uma imagem mais clara ou informe o erro manualmente."
+                            resposta = "Desculpe, mas ocorreu um erro interno ao processar a imagem. Por favor, digite o erro manualmente."
 
                     elif mensagem_limpa:
                         print(f"👀 O robô leu a mensagem: '{mensagem_limpa}'")
@@ -171,8 +165,10 @@ while True:
                     caixa_texto_envio = navegador.find_element(By.XPATH, '//*[@id="main"]//footer//div[@contenteditable="true"]')
 
                     for linha in resposta.split('\n'):
-                            caixa_texto_envio.send_keys(linha)
-                            caixa_texto_envio.send_keys(Keys.SHIFT , Keys.ENTER)
+                        # FILTRO APLICADO: Evita erro de BMP removendo caracteres que o Selenium não entende
+                        linha_sem_emoji = "".join(c for c in linha if ord(c) <= 0xFFFF)
+                        caixa_texto_envio.send_keys(linha_sem_emoji)
+                        caixa_texto_envio.send_keys(Keys.SHIFT , Keys.ENTER)
 
                     caixa_texto_envio.send_keys(Keys.ENTER)
 
