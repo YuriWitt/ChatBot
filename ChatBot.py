@@ -192,12 +192,12 @@ while True:
                             saudacoes = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "preciso de ajuda", "menu", "deu erro"]
 
                             if mensagem_limpa in saudacoes:
-                                    resposta = ("Olá! Sou o assistente virtual de suporte Insoft.\n\n"
-                                            "Para que eu possa te ajudar, por favor, informe qual a sua solicitação:\n"
-                                            "A - NFe\n"
+                                    resposta = ("Olá! Sou o assistente virtual de suporte da Insoft.\n\n"
+                                            "Para te ajudar de forma mais rápida, por favor escolha uma das opções abaixo:\n"
+                                            "A - Nota fiscal (NFe)\n"
                                             "B - Vendas\n"
-                                            "C - Outros\n"
-                                            "E - Sair")
+                                            "C - Outros Assuntos\n"
+                                            "E - Encerrar atendimento")
 
                             elif mensagem_limpa in ["a", "nfe"]:
                                 resposta = "Por favor, informe o erro que aparece na tela ou a dúvida que você tem sobre NFe."
