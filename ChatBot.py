@@ -14,6 +14,8 @@ from rapidfuzz import process
 import time
 import easyocr
 import os
+import cv2  # NOVA IMPORTAÇÃO PARA LIMPAR A IMAGEM
+import re   # NOVA IMPORTAÇÃO PARA BUSCA INTELIGENTE DE TEXTO
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -31,6 +33,7 @@ def buscar_resposta(mensagem):
     preguntas = list(base_dados.keys())
     resposta, score, _ = process.extractOne(mensagem, preguntas)
 
+    # Tente diminuir esse número para 75 ou 80 se ele continuar não achando a resposta exata
     if score >= 85:
         return base_dados[resposta]
     return "Desculpe, não consegui entender sua solicitação... \nPor favor, tente informar a mensagem de erro que aparece na tela."
@@ -131,18 +134,28 @@ while True:
 
                                 imagem_elemento.screenshot(caminho_imagem)
 
+                                # --- INÍCIO DO TRATAMENTO DA IMAGEM PARA MELHORAR LEITURA ---
+                                img = cv2.imread(caminho_imagem)
+                                # Aumenta a imagem em 2x
+                                img = cv2.resize(img, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+                                # Transforma em Tons de Cinza
+                                cinza = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                                # Remove o fundo (binarização), foca só no texto preto
+                                _, img_tratada = cv2.threshold(cinza, 130, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+                                cv2.imwrite(caminho_imagem, img_tratada)
+                                # --- FIM DO TRATAMENTO DA IMAGEM ---
+
                                 resultado = leitor_imagem.readtext(caminho_imagem, detail=0)
                                 texto_completo = ' '.join(resultado).lower()
                                 
-                                # LÓGICA NOVA: Prioriza o texto DEPOIS da palavra "rejeição"
-                                if "rejeição" in texto_completo:
-                                    texto_extraido = texto_completo.split("rejeição", 1)[1]
-                                elif "rejeicao" in texto_completo:
-                                    texto_extraido = texto_completo.split("rejeicao", 1)[1]
+                                # Usando Regex para pegar tudo depois de "rejeição" ignorando erros de acento do OCR
+                                partes = re.split(r'rejei[cç][aã]o[:\s]*', texto_completo)
+                                
+                                if len(partes) > 1:
+                                    texto_extraido = partes[1]
                                 else:
                                     texto_extraido = texto_completo
                                 
-                                # Remove possíveis dois pontos, traços ou espaços no início da frase cortada
                                 texto_extraido = texto_extraido.strip(' :-=>')
 
                                 print(f"👀 O robô filtrou a imagem e buscará por: '{texto_extraido}'")
