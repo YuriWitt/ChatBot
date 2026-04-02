@@ -34,7 +34,7 @@ def buscar_resposta(mensagem):
     resposta, score, _ = process.extractOne(mensagem, preguntas)
 
     # Tente diminuir esse número para 75 ou 80 se ele continuar não achando a resposta exata
-    if score >= 85:
+    if score >= 75:
         return base_dados[resposta]
     return "Desculpe, não consegui entender sua solicitação... \nPor favor, tente informar a mensagem de erro que aparece na tela."
 
@@ -134,23 +134,19 @@ while True:
 
                                 imagem_elemento.screenshot(caminho_imagem)
 
-                                # --- INÍCIO DO TRATAMENTO DA IMAGEM PARA MELHORAR LEITURA ---
                                 img = cv2.imread(caminho_imagem)
+
+                                # 1. Aumenta a imagem primeiro
+                                ampliada = cv2.resize(img, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
                                 
-                                # 1. Transforma em Tons de Cinza
-                                cinza = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                                # 2. Transforma em tons de cinza
+                                cinza = cv2.cvtColor(ampliada, cv2.COLOR_BGR2GRAY)
                                 
-                                # 2. Aplica um desfoque leve (Blur) para sumir com as "linhas" do monitor (Efeito Moiré)
-                                desfoque = cv2.GaussianBlur(cinza, (5, 5), 0)
+                                # 3. Filtro de Mediana: "esmaga" o quadriculado do monitor, mas preserva o texto
+                                img_tratada = cv2.medianBlur(cinza, 3)
                                 
-                                # 3. Aumenta a imagem DEPOIS de desfocar as linhas
-                                ampliada = cv2.resize(desfoque, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-                                
-                                # 4. Binarização Adaptativa (Excelente para fotos de tela que têm reflexo ou brilho irregular)
-                                img_tratada = cv2.adaptiveThreshold(ampliada, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
-                                
+                                # Salva a imagem sem forçar o preto e branco extremo
                                 cv2.imwrite(caminho_imagem, img_tratada)
-                                # --- FIM DO TRATAMENTO DA IMAGEM ---
 
                                 resultado = leitor_imagem.readtext(caminho_imagem, detail=0)
                                 texto_completo = ' '.join(resultado).lower()
