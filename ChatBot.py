@@ -14,8 +14,8 @@ from rapidfuzz import process
 import time
 import easyocr
 import os
-import cv2  # NOVA IMPORTAÇÃO PARA LIMPAR A IMAGEM
-import re   # NOVA IMPORTAÇÃO PARA BUSCA INTELIGENTE DE TEXTO
+import cv2 
+import re   
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -33,15 +33,15 @@ def buscar_resposta(mensagem):
     preguntas = list(base_dados.keys())
     resposta, score, _ = process.extractOne(mensagem, preguntas)
 
-    # Tente diminuir esse número para 75 ou 80 se ele continuar não achando a resposta exata
-    if score >= 75:
+    # Tolerância de 60 para aceitar pequenos erros de leitura do OCR
+    if score >= 70:
         return base_dados[resposta]
     return "Desculpe, não consegui entender sua solicitação... \nPor favor, tente informar a mensagem de erro que aparece na tela."
 
 print("Chatbot iniciado. Digite 'sair' para encerrar a conversa.")
 
 print("Carregando IA para leitura de imagens...")
-leitor_imagem = easyocr.Reader(['pt-br'], gpu=False)
+leitor_imagem = easyocr.Reader(['pt'], gpu=False)
 print("IA de leitura de imagens carregada com sucesso!")
 
 chrome_options = Options()
@@ -127,39 +127,42 @@ while True:
 
                     else:
                         if imagens:
-                            print("📷 Imagem detectada. O robô está processando...")
+                            print("📷 Imagem detectada. Ampliando para ler com qualidade máxima...")
                             try:
                                 imagem_elemento = imagens[-1]
                                 caminho_imagem = "imagem_recebida.png"
 
-                                imagem_elemento.screenshot(caminho_imagem)
+                                imagem_elemento.click()
+                                time.sleep(2)
+
+                                navegador.save_screenshot(caminho_imagem)
+
+                                acoes = ActionChains(navegador)
+                                acoes.send_keys(Keys.ESCAPE).perform()
+                                time.sleep(1)
 
                                 img = cv2.imread(caminho_imagem)
-
-                                # 1. Aumenta a imagem primeiro
-                                ampliada = cv2.resize(img, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+                                cinza = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
                                 
-                                # 2. Transforma em tons de cinza
-                                cinza = cv2.cvtColor(ampliada, cv2.COLOR_BGR2GRAY)
+                                clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+                                img_clahe = clahe.apply(cinza)
                                 
-                                # 3. Filtro de Mediana: "esmaga" o quadriculado do monitor, mas preserva o texto
-                                img_tratada = cv2.medianBlur(cinza, 3)
+                                ampliada_clahe = cv2.resize(img_clahe, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
                                 
-                                # Salva a imagem sem forçar o preto e branco extremo
-                                cv2.imwrite(caminho_imagem, img_tratada)
+                                cv2.imwrite(caminho_imagem, ampliada_clahe)
 
                                 resultado = leitor_imagem.readtext(caminho_imagem, detail=0)
                                 texto_completo = ' '.join(resultado).lower()
                                 
-                                # Usando Regex para pegar tudo depois de "rejeição" ignorando erros de acento do OCR
-                                partes = re.split(r'rejei[cç][aã]o[:\s]*', texto_completo)
-                                
-                                if len(partes) > 1:
-                                    texto_extraido = partes[1]
+                                if 'sefaz' in texto_completo:
+                                    texto_extraido = 'sefaz' + texto_completo.split('sefaz', 1)[1]
                                 else:
-                                    texto_extraido = texto_completo
-                                
-                                texto_extraido = texto_extraido.strip(' :-=>')
+                                    partes = re.split(r'(?:rejei[cç][aã]o|rejei.*?|rjcicoo)[:\s]*', texto_completo)
+                                    texto_extraido = partes[1] if len(partes) > 1 else texto_completo
+
+                                texto_extraido = re.sub(r'\d{2,}', '', texto_extraido)
+                                texto_extraido = re.sub(r'[^\w\s]', ' ', texto_extraido)
+                                texto_extraido = re.sub(r'\s+', ' ', texto_extraido).strip()
 
                                 print(f"👀 O robô filtrou a imagem e buscará por: '{texto_extraido}'")
 
