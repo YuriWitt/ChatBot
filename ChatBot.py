@@ -66,10 +66,12 @@ except TimeoutException:
 estado_usuarios = {}
 dados_clientes = {}
 tentativas_falhas = {}
+ultima_mensagem_lida = {} # <-- DICIONÁRIO DE CACHE ADICIONADO AQUI
 
 while True:
     try:
-        mensagens_nao_lidas = navegador.find_elements(By.XPATH, "//*[@id='pane-side']//span[contains(@aria-label, 'lida')]")
+        # <-- XPATH CORRIGIDO PARA 'não lida'
+        mensagens_nao_lidas = navegador.find_elements(By.XPATH, "//*[@id='pane-side']//span[contains(@aria-label, 'não lida')]")
 
         if len(mensagens_nao_lidas) > 0:
             print(f"Você tem {len(mensagens_nao_lidas)} mensagens não lidas. O robô está lendo...")
@@ -105,6 +107,18 @@ while True:
                         data_hora = "[Data/Hora não encontrada] "
                         texto_bruto = ""
                     
+                    # --- INÍCIO DA PREVENÇÃO DE LOOP INFINITO ---
+                    id_mensagem = f"{data_hora}|{texto_bruto}"
+                    
+                    if ultima_mensagem_lida.get(nome_contato) == id_mensagem:
+                        acoes = ActionChains(navegador)
+                        acoes.send_keys(Keys.ESCAPE).perform()
+                        time.sleep(1)
+                        continue
+                        
+                    ultima_mensagem_lida[nome_contato] = id_mensagem
+                    # --- FIM DA PREVENÇÃO DE LOOP INFINITO ---
+
                     imagens = ultimo_balao.find_elements(By.XPATH, ".//img[contains(@src, 'blob:')]")
 
                     ultima_mensagem = ""
@@ -166,7 +180,6 @@ while True:
 
                         else:
                             resposta = "Por favor, digite o seu nome em texto para prosseguirmos."
-
 
                     elif estado_atual == "AGUARDANDO_MENU":
                         if mensagem_limpa in ["a", "nfe"]:
