@@ -15,8 +15,8 @@ import time
 import easyocr
 import os
 import cv2 
-import re
-from datetime import datetime, time as dt_time   
+import re   
+from datetime import datetime, time as dt_time
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -40,6 +40,20 @@ def buscar_resposta(mensagem):
     if score >= 60:
         return base_dados[resposta]
     return "Desculpe, não consegui entender sua solicitação... \nPor favor, tente informar a mensagem de erro que aparece na tela."
+
+def dentro_do_horario_atendimento():
+    agora = datetime.now()
+    dia_semana = agora.weekday() 
+    hora = agora.time()
+
+    if dia_semana in [5, 6]:
+        return False
+
+    
+    if (dt_time(8, 0) <= hora <= dt_time(12, 0)) or (dt_time(13, 12) <= hora <= dt_time(18, 0)):
+        return True
+        
+    return False
 
 print("Chatbot iniciado. Digite 'sair' para encerrar a conversa.")
 
@@ -68,6 +82,7 @@ estado_usuarios = {}
 dados_clientes = {}
 tentativas_falhas = {}
 ultima_mensagem_lida = {}
+
 
 while True:
     try:
@@ -175,7 +190,6 @@ while True:
                                         "C - Outros Assuntos\n"
                                         "E - Encerrar atendimento")
                             estado_usuarios[nome_contato] = "AGUARDANDO_MENU"
-
                         else:
                             resposta = "Por favor, digite o seu nome em texto para prosseguirmos."
 
@@ -263,7 +277,6 @@ while True:
                                 if len(texto_extraido.strip()) > 4:
                                     resposta = buscar_resposta(texto_extraido)
                                     
-                                    
                                     if "Desculpe, não consegui entender sua solicitação" in resposta:
                                         falhas = tentativas_falhas.get(nome_contato, 0) + 1
                                         if falhas >= 2:
@@ -325,8 +338,17 @@ while True:
                             else:
                                 resposta = "Desculpe, mas o tipo de mensagem que você enviou não é suportado pelo nosso robô. Por favor, envie uma mensagem de texto ou uma imagem clara do erro que você está enfrentando."
                                 tentativas_falhas[nome_contato] = falhas
+                    
+                    
                     else:
-                        resposta = "Olá! Sou o assistente virtual de suporte da Insoft.\n\nPara começarmos o seu atendimento, por favor, me informe o nome da sua empresa ou CNPJ:"
+                        saudacao = "Olá! Sou o assistente virtual de suporte da Insoft.\n\nPara começarmos o seu atendimento, por favor, me informe o nome da sua empresa ou CNPJ:"
+                        
+                        if not dentro_do_horario_atendimento():
+                            aviso_horario = "Nosso horário de atendimento é:\nSegunda à Sexta das 08:00 às 12:00 e 13:12 às 18:00.\nSábados e Domingos : Fechados\n\n"
+                            resposta = aviso_horario + saudacao
+                        else:
+                            resposta = saudacao
+                            
                         estado_usuarios[nome_contato] = "AGUARDANDO_EMPRESA_CNPJ"
                     
                     caixa_texto_envio = navegador.find_element(By.XPATH, '//*[@id="main"]//footer//div[@contenteditable="true"]')
