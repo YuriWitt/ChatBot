@@ -68,7 +68,7 @@ tentativas_falhas = {}
 
 while True:
     try:
-        mensagens_nao_lidas = navegador.find_elements(By.XPATH, "//span[contains(@aria-label, 'lida')]")
+        mensagens_nao_lidas = navegador.find_elements(By.XPATH, "//*[@id='pane-side']//span[contains(@aria-label, 'lida')]")
 
         if len(mensagens_nao_lidas) > 0:
             print(f"Você tem {len(mensagens_nao_lidas)} mensagens não lidas. O robô está lendo...")
@@ -117,15 +117,31 @@ while True:
                     
                     estado_atual = estado_usuarios.get(nome_contato)
 
-                    
                     if estado_atual == "ATENDIMENTO_HUMANO":
-                        print(f"O contato '{nome_contato}' está conversando com um atendente humano. O robô não vai responder.")
-                        acoes = ActionChains(navegador)
-                        acoes.send_keys(Keys.ESCAPE).perform()
-                        continue
+                        baloes_enviados = navegador.find_elements(By.XPATH, "//div[contains(@class, 'message-out')]")
+                        atendimento_finalizado = False
+                        
+                        if baloes_enviados:
+                            ultimo_balao_enviado = baloes_enviados[-1]
+                            try:
+                                texto_enviado = ultimo_balao_enviado.find_element(By.XPATH, ".//div[contains(@class, 'copyable-text')]").text.lower()
+                                if "agradecemos pelo contato" in texto_enviado and "seu atendimento foi finalizado" in texto_enviado:
+                                    atendimento_finalizado = True
+                            except:
+                                pass
+                                
+                        if atendimento_finalizado:
+                            print(f"Atendimento de '{nome_contato}' finalizado pelo humano. Retomando o controle e enviando avaliação...")
+                            resposta = "Para nos ajudar a melhorar, como você avalia o meu atendimento de *1 a 5*? (Sendo 1 Ruim e 5 Excelente)"
+                            estado_usuarios[nome_contato] = "AGUARDANDO_AVALIACAO"
+                        else:
+                            print(f"O contato '{nome_contato}' continua conversando com um atendente humano. O robô vai ignorar.")
+                            acoes = ActionChains(navegador)
+                            acoes.send_keys(Keys.ESCAPE).perform()
+                            continue
                     
-                    if estado_atual == "AGUARDANDO_CONFIRMACAO":
-                        if mensagem_limpa in ["sim", "s"]:
+                    elif estado_atual == "AGUARDANDO_CONFIRMACAO":
+                        if mensagem_limpa in ["sim", "s", "sim resolveu", "resolvido", "resolvi"]:
                             resposta = "Ótimo! Fico feliz em ter ajudado.\n\nPara nos ajudar a melhorar, como você avalia o meu atendimento de *1 a 5*? (Sendo 1 Ruim e 5 Excelente)"
                             estado_usuarios[nome_contato] = "AGUARDANDO_AVALIACAO"
                             
