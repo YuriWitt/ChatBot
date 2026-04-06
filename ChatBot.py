@@ -64,6 +64,7 @@ except TimeoutException:
     exit()
 
 estado_usuarios = {}
+tentativas_falhas = {}
 
 while True:
     try:
@@ -115,6 +116,13 @@ while True:
                     print(f"{data_hora.strip() if data_hora else ''}")
                     
                     estado_atual = estado_usuarios.get(nome_contato)
+
+                    
+                    if estado_atual == "ATENDIMENTO_HUMANO":
+                        print(f"O contato '{nome_contato}' está conversando com um atendente humano. O robô não vai responder.")
+                        acoes = ActionChains(navegador)
+                        acoes.send_keys(Keys.ESCAPE).perform()
+                        continue
                     
                     if estado_atual == "AGUARDANDO_CONFIRMACAO":
                         if mensagem_limpa in ["sim", "s"]:
@@ -123,7 +131,7 @@ while True:
                             
                         elif mensagem_limpa in ["nao", "não", "n", "nao resolveu", "não resolveu"]:
                             resposta = "Certo, entendi. Estou encaminhando o seu caso para um de nossos atendentes. Por favor, aguarde um momento."
-                            estado_usuarios.pop(nome_contato, None)
+                            estado_usuarios[nome_contato] = "ATENDIMENTO_HUMANO"
                             
                         else:
                             resposta = "Por favor, responda apenas com *Sim* ou *Não*. A solução que enviei anteriormente resolveu o seu problema?"
@@ -137,7 +145,6 @@ while True:
                             print(f"AVALIAÇÃO: O cliente '{nome_contato}' avaliou o atendimento com nota {nota}!")
                             estado_usuarios.pop(nome_contato, None)
                         else:
-                            
                             print(f"O robô não encontrou um número de 1 a 5. O texto lido foi: '{mensagem_limpa}'")
                             resposta = "Por favor, digite apenas um número de *1 a 5* para avaliar o atendimento."
 
@@ -186,13 +193,28 @@ while True:
                                     resposta = buscar_resposta(texto_extraido)
                                     
                                     if "Desculpe, não consegui entender sua solicitação" in resposta:
-                                        resposta = "Desculpe, não encontrei a solução para o erro mostrado na imagem. Por favor, tente enviar uma foto mais nítida ou digite o erro manualmente."
+                                        falhas = tentativas_falhas.get(nome_contato, 0) + 1
+                                        if falhas >= 2:
+                                            resposta = "Parece que não estou conseguindo encontrar a solução para o seu problema.\n\nEstou encaminhando o seu caso para um de nossos atendentes. Por favor, aguarde um momento."
+                                            estado_usuarios[nome_contato] = "ATENDIMENTO_HUMANO"
+                                            tentativas_falhas.pop(nome_contato, None)
+                                        else:
+                                            resposta = "Desculpe, não encontrei a solução para o erro mostrado na imagem. Por favor, tente enviar uma foto mais nítida ou digite o erro manualmente."
+                                            tentativas_falhas[nome_contato] = falhas
                                     else:
+                                        tentativas_falhas[nome_contato] = 0
                                         resposta += "\n\nEssa solução resolveu o seu problema? (Responda *Sim* ou *Não*)"
                                         estado_usuarios[nome_contato] = "AGUARDANDO_CONFIRMACAO"
                                         
                                 else:
-                                    resposta = "Desculpe, mas a imagem parece estar ilegível ou sem texto de erro. Por favor, tente enviar uma imagem mais clara ou informe o erro manualmente."
+                                    falhas = tentativas_falhas.get(nome_contato, 0) + 1
+                                    if falhas >= 2:
+                                        resposta = "Parece que não estou conseguindo ler a imagem do seu problema.\n\nEstou encaminhando o seu caso para um de nossos atendentes. Por favor, aguarde um momento."
+                                        estado_usuarios[nome_contato] = "ATENDIMENTO_HUMANO"
+                                        tentativas_falhas.pop(nome_contato, None)
+                                    else:
+                                        resposta = "Desculpe, mas a imagem parece estar ilegível ou sem texto de erro. Por favor, tente enviar uma imagem mais clara ou informe o erro manualmente."
+                                        tentativas_falhas[nome_contato] = falhas
                                 
                                 if os.path.exists(caminho_imagem):
                                     os.remove(caminho_imagem)
@@ -229,13 +251,29 @@ while True:
                             else:
                                 resposta = buscar_resposta(ultima_mensagem)
                                 
-                                if "Desculpe" not in resposta:
+                                if "Desculpe" in resposta:
+                                    falhas = tentativas_falhas.get(nome_contato, 0) + 1
+                                    if falhas >= 2:
+                                        resposta = "Parece que não estou conseguindo encontrar a solução para o seu problema.\n\nEstou encaminhando o seu caso para um de nossos atendentes. Por favor, aguarde um momento."
+                                        estado_usuarios[nome_contato] = "ATENDIMENTO_HUMANO"
+                                        tentativas_falhas.pop(nome_contato, None)
+                                    else:
+                                        tentativas_falhas[nome_contato] = falhas
+                                else:
+                                    tentativas_falhas[nome_contato] = 0
                                     resposta += "\n\nEssa solução resolveu o seu problema? (Responda *Sim* ou *Não*)"
                                     estado_usuarios[nome_contato] = "AGUARDANDO_CONFIRMACAO"
 
                         else:
                             print("Formato não suportado")
-                            resposta = "Desculpe, mas o tipo de mensagem que você enviou não é suportado pelo nosso robô. Por favor, envie uma mensagem de texto ou uma imagem clara do erro que você está enfrentando."
+                            falhas = tentativas_falhas.get(nome_contato, 0) + 1
+                            if falhas >= 2:
+                                resposta = "Como não estou conseguindo entender o formato enviado, estou encaminhando o seu caso para um de nossos atendentes. Por favor, aguarde um momento."
+                                estado_usuarios[nome_contato] = "ATENDIMENTO_HUMANO"
+                                tentativas_falhas.pop(nome_contato, None)
+                            else:
+                                resposta = "Desculpe, mas o tipo de mensagem que você enviou não é suportado pelo nosso robô. Por favor, envie uma mensagem de texto ou uma imagem clara do erro que você está enfrentando."
+                                tentativas_falhas[nome_contato] = falhas
 
                     
                     caixa_texto_envio = navegador.find_element(By.XPATH, '//*[@id="main"]//footer//div[@contenteditable="true"]')
