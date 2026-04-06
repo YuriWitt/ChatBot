@@ -64,6 +64,7 @@ except TimeoutException:
     exit()
 
 estado_usuarios = {}
+dados_clientes = {}
 tentativas_falhas = {}
 
 while True:
@@ -114,7 +115,7 @@ while True:
                         mensagem_limpa = ultima_mensagem.replace("!", "").replace("?", "").replace(".", "").replace(",", "")
                             
                     print(f"{data_hora.strip() if data_hora else ''}")
-                    
+
                     estado_atual = estado_usuarios.get(nome_contato)
 
                     if estado_atual == "ATENDIMENTO_HUMANO":
@@ -139,7 +140,50 @@ while True:
                             acoes = ActionChains(navegador)
                             acoes.send_keys(Keys.ESCAPE).perform()
                             continue
+
+                    elif estado_atual == "AGUARDANDO_EMPRESA_CNPJ":
+                        if mensagem_limpa:
+                            dados_clientes[nome_contato] = {'empresa': texto_bruto.strip()}
+                            resposta = "Certo Obrigado!, Agora por favor informe o seu nome: "
+                            estado_usuarios[nome_contato] = "AGUARDANDO_NOME"
+                        else:
+                            resposta = "Por favor, digite em texto o nome da sua empresa ou CNPJ."
                     
+                    elif estado_atual == "AGUARDANDO_NOME":
+                        if mensagem_limpa:
+                            nome_informado = texto_bruto.strip()
+                            if nome_contato not in dados_clientes:
+                                dados_clientes[nome_contato] = {}
+                            dados_clientes[nome_contato]['nome'] = nome_informado
+
+                            resposta = (f"Prazer em falar com você, {nome_informado}!\n\n"
+                                        "Para te ajudar de forma mais rápida, por favor escolha uma das opções abaixo:\n"
+                                        "A - Nota fiscal (NFe)\n"
+                                        "B - Vendas\n"
+                                        "C - Outros Assuntos\n"
+                                        "E - Encerrar atendimento")
+                            estado_usuarios[nome_contato] = "AGUARDANDO_MENU"
+
+                        else:
+                            resposta = "Por favor, digite o seu nome em texto para prosseguirmos."
+
+
+                    elif estado_atual == "AGUARDANDO_MENU":
+                        if mensagem_limpa in ["a", "nfe"]:
+                            resposta = "Você escolheu NFe. Por favor, me informe a mensagem de erro que aparece na tela ou envie uma foto legível da rejeição."
+                            estado_usuarios[nome_contato] = "EM_SUPORTE"
+                        elif mensagem_limpa in ["b", "vendas"]:
+                            resposta = "Você escolheu Vendas. Por favor, me informe a mensagem de erro que aparece na tela ou envie uma foto do problema."
+                            estado_usuarios[nome_contato] = "EM_SUPORTE"
+                        elif mensagem_limpa in ["c", "outros", "outros assuntos"]:
+                            resposta = "Você escolheu Outros Assuntos. Por favor, detalhe a sua dúvida ou o erro."
+                            estado_usuarios[nome_contato] = "EM_SUPORTE"
+                        elif mensagem_limpa in ["e", "sair", "encerrar"]:
+                            resposta = "O seu atendimento está sendo encerrado.\n\nPara nos ajudar a melhorar, como você avalia o meu atendimento de *1 a 5*? (Sendo 1 Ruim e 5 Excelente)"
+                            estado_usuarios[nome_contato] = "AGUARDANDO_AVALIACAO"
+                        else:
+                            resposta = "Opção inválida. Por favor, responda apenas com A, B, C ou E."        
+
                     elif estado_atual == "AGUARDANDO_CONFIRMACAO":
                         if mensagem_limpa in ["sim", "s", "sim resolveu", "resolvido", "resolvi"]:
                             resposta = "Ótimo! Fico feliz em ter ajudado.\n\nPara nos ajudar a melhorar, como você avalia o meu atendimento de *1 a 5*? (Sendo 1 Ruim e 5 Excelente)"
@@ -164,7 +208,7 @@ while True:
                             print(f"O robô não encontrou um número de 1 a 5. O texto lido foi: '{mensagem_limpa}'")
                             resposta = "Por favor, digite apenas um número de *1 a 5* para avaliar o atendimento."
 
-                    else:
+                    elif estado_atual == "EM_SUPORTE":
                         if imagens:
                             print("📷 Imagem detectada. Ampliando para ler com qualidade máxima...")
                             try:
@@ -240,30 +284,9 @@ while True:
                                 resposta = "Desculpe, mas ocorreu um erro interno ao processar a imagem. Por favor, digite o erro manualmente."
 
                         elif mensagem_limpa:
-                            print(f"O robô leu a mensagem: '{mensagem_limpa}'")
-                            saudacoes = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "preciso de ajuda", "menu", "deu erro"]
-
-                            if mensagem_limpa in saudacoes:
-                                    resposta = ("Olá! Sou o assistente virtual de suporte da Insoft.\n\n"
-                                            "Para te ajudar de forma mais rápida, por favor escolha uma das opções abaixo:\n"
-                                            "A - Nota fiscal (NFe)\n"
-                                            "B - Vendas\n"
-                                            "C - Outros Assuntos\n"
-                                            "E - Encerrar atendimento")
-
-                            elif mensagem_limpa in ["a", "nfe"]:
-                                resposta = "Por favor, informe o erro que aparece na tela ou a dúvida que você tem sobre NFe."
-
-                            elif mensagem_limpa in ["b", "vendas"]:
-                                resposta = "Por favor, informe o erro que aparece na tela ou a dúvida que você tem sobre vendas."
-
-                            elif mensagem_limpa in ["c", "outros"]:
-                                resposta = "Por favor, informe o erro que aparece na tela ou a dúvida que você tem sobre outros assuntos."
-
-                            elif mensagem_limpa in ["e", "sair"]:
+                            if mensagem_limpa in ["e", "sair", "encerrar"]:
                                 resposta = "O seu atendimento está sendo encerrado.\n\nPara nos ajudar a melhorar, como você avalia o meu atendimento de *1 a 5*? (Sendo 1 Ruim e 5 Excelente)"
                                 estado_usuarios[nome_contato] = "AGUARDANDO_AVALIACAO"
-                            
                             else:
                                 resposta = buscar_resposta(ultima_mensagem)
                                 
@@ -290,7 +313,9 @@ while True:
                             else:
                                 resposta = "Desculpe, mas o tipo de mensagem que você enviou não é suportado pelo nosso robô. Por favor, envie uma mensagem de texto ou uma imagem clara do erro que você está enfrentando."
                                 tentativas_falhas[nome_contato] = falhas
-
+                    else:
+                        resposta = "Olá! Sou o assistente virtual de suporte da Insoft.\n\nPara começarmos o seu atendimento, por favor, me informe o nome da sua empresa ou CNPJ:"
+                        estado_usuarios[nome_contato] = "AGUARDANDO_EMPRESA_CNPJ"
                     
                     caixa_texto_envio = navegador.find_element(By.XPATH, '//*[@id="main"]//footer//div[@contenteditable="true"]')
 
