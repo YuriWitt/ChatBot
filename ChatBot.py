@@ -42,9 +42,9 @@ def buscar_resposta(mensagem):
 
 print("Chatbot iniciado. Digite 'sair' para encerrar a conversa.")
 
-print("Carregando IA para leitura de imagens...")
+print("Carregando a leitura de imagens...")
 leitor_imagem = easyocr.Reader(['pt'], gpu=False)
-print("IA de leitura de imagens carregada com sucesso!")
+print("Leitura de imagens carregada com sucesso!")
 
 chrome_options = Options()
 chrome_options.add_experimental_option("detach", True)
@@ -70,7 +70,7 @@ while True:
         mensagens_nao_lidas = navegador.find_elements(By.XPATH, "//span[contains(@aria-label, 'lida')]")
 
         if len(mensagens_nao_lidas) > 0:
-            print(f"🔔 Você tem {len(mensagens_nao_lidas)} mensagens não lidas. O robô está lendo...")
+            print(f"Você tem {len(mensagens_nao_lidas)} mensagens não lidas. O robô está lendo...")
 
         for bolinha in mensagens_nao_lidas:
             try:
@@ -79,7 +79,7 @@ while True:
                 
                 grupo_check = navegador.find_elements(By.XPATH, '//*[@id="main"]//div[contains(@data-id, "@g.us")]')
                 if grupo_check:
-                    print("🚫 Mensagem de grupo detectada. Ignorando e fechando...")
+                    print("Mensagem de grupo detectada. Ignorando e fechando...")
                     acoes = ActionChains(navegador)
                     acoes.send_keys(Keys.ESCAPE).perform()
                     time.sleep(1)
@@ -98,23 +98,21 @@ while True:
                     try:
                         caixa_texto = ultimo_balao.find_element(By.XPATH, ".//div[contains(@class, 'copyable-text')]")
                         data_hora = caixa_texto.get_attribute("data-pre-plain-text")
+                        texto_bruto = caixa_texto.text
                     except:
                         data_hora = "[Data/Hora não encontrada] "
+                        texto_bruto = ""
                     
-                    textos = ultimo_balao.find_elements(By.XPATH, ".//span[@dir='ltr' or contains(@class, 'selectable-text')]")
                     imagens = ultimo_balao.find_elements(By.XPATH, ".//img[contains(@src, 'blob:')]")
 
                     ultima_mensagem = ""
                     mensagem_limpa = ""
 
-                    if textos:
-                        textos_validos = [t.text.lower() for t in textos if t.text.strip() != ""]
-                        
-                        if textos_validos:
-                            ultima_mensagem = textos_validos[-1]
-                            mensagem_limpa = ultima_mensagem.replace("!", "").replace("?", "").replace(".", "").replace(",", "")
+                    if texto_bruto.strip() != "":
+                        ultima_mensagem = texto_bruto.lower().strip()
+                        mensagem_limpa = ultima_mensagem.replace("!", "").replace("?", "").replace(".", "").replace(",", "")
                             
-                    print(f"🕒 {data_hora.strip() if data_hora else ''}")
+                    print(f"{data_hora.strip() if data_hora else ''}")
                     
                     estado_atual = estado_usuarios.get(nome_contato)
                     
@@ -136,11 +134,11 @@ while True:
                         if match_nota:
                             nota = match_nota.group(0)
                             resposta = "Muito obrigado pela sua avaliação! Seu feedback é fundamental para nós. O seu atendimento foi encerrado. Tenha um excelente dia!"
-                            print(f"⭐ AVALIAÇÃO: O cliente '{nome_contato}' avaliou o atendimento com nota {nota}!")
+                            print(f"AVALIAÇÃO: O cliente '{nome_contato}' avaliou o atendimento com nota {nota}!")
                             estado_usuarios.pop(nome_contato, None)
                         else:
                             
-                            print(f"⚠️ O robô não encontrou um número de 1 a 5. O texto lido foi: '{mensagem_limpa}'")
+                            print(f"O robô não encontrou um número de 1 a 5. O texto lido foi: '{mensagem_limpa}'")
                             resposta = "Por favor, digite apenas um número de *1 a 5* para avaliar o atendimento."
 
                     else:
@@ -182,7 +180,7 @@ while True:
                                 texto_extraido = re.sub(r'[^\w\s]', ' ', texto_extraido)
                                 texto_extraido = re.sub(r'\s+', ' ', texto_extraido).strip()
 
-                                print(f"👀 O robô filtrou a imagem e buscará por: '{texto_extraido}'")
+                                print(f"O robô filtrou a imagem e buscará por: '{texto_extraido}'")
 
                                 if len(texto_extraido.strip()) > 4:
                                     resposta = buscar_resposta(texto_extraido)
@@ -200,11 +198,11 @@ while True:
                                     os.remove(caminho_imagem)
 
                             except Exception as e:
-                                print(f"⚠️ Ocorreu um erro ao processar a imagem: {e}")
+                                print(f"Ocorreu um erro ao processar a imagem: {e}")
                                 resposta = "Desculpe, mas ocorreu um erro interno ao processar a imagem. Por favor, digite o erro manualmente."
 
                         elif mensagem_limpa:
-                            print(f"👀 O robô leu a mensagem: '{mensagem_limpa}'")
+                            print(f"O robô leu a mensagem: '{mensagem_limpa}'")
                             saudacoes = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "preciso de ajuda", "menu", "deu erro"]
 
                             if mensagem_limpa in saudacoes:
@@ -236,7 +234,7 @@ while True:
                                     estado_usuarios[nome_contato] = "AGUARDANDO_CONFIRMACAO"
 
                         else:
-                            print("❌ Formato não suportado")
+                            print("Formato não suportado")
                             resposta = "Desculpe, mas o tipo de mensagem que você enviou não é suportado pelo nosso robô. Por favor, envie uma mensagem de texto ou uma imagem clara do erro que você está enfrentando."
 
                     
@@ -249,7 +247,7 @@ while True:
 
                     caixa_texto_envio.send_keys(Keys.ENTER)
 
-                    print(f"✅ Resposta enviada com sucesso!")
+                    print(f"Resposta enviada com sucesso!")
                     
                     time.sleep(2)
 
@@ -257,12 +255,12 @@ while True:
                     acoes.send_keys(Keys.ESCAPE).perform()
 
                 else:
-                    print("❌ Abri a conversa, mas não consegui ler o texto da mensagem.")
+                    print("Abri a conversa, mas não consegui ler o texto da mensagem.")
                     acoes = ActionChains(navegador)
                     acoes.send_keys(Keys.ESCAPE).perform()
 
             except StaleElementReferenceException:
-                print("⚠️ A página do WhatsApp atualizou enquanto o robô lia. Recalculando...")
+                print("A página do WhatsApp atualizou enquanto o robô lia. Recalculando...")
                 acoes = ActionChains(navegador)
                 acoes.send_keys(Keys.ESCAPE).perform()
                 continue
@@ -270,7 +268,7 @@ while True:
     except TimeoutException:
         pass
     except Exception as e:
-        print(f"⚠️ Ocorreu um erro na automação: {e}")
+        print(f"Ocorreu um erro na automação: {e}")
         time.sleep(2)
           
     time.sleep(3)
