@@ -15,7 +15,8 @@ import time
 import easyocr
 import os
 import cv2 
-import re   
+import re
+from datetime import datetime, time as dt_time   
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -66,11 +67,10 @@ except TimeoutException:
 estado_usuarios = {}
 dados_clientes = {}
 tentativas_falhas = {}
-ultima_mensagem_lida = {} # <-- DICIONÁRIO DE CACHE ADICIONADO AQUI
+ultima_mensagem_lida = {}
 
 while True:
     try:
-        # <-- XPATH CORRIGIDO PARA 'não lida'
         mensagens_nao_lidas = navegador.find_elements(By.XPATH, "//*[@id='pane-side']//span[contains(@aria-label, 'não lida')]")
 
         if len(mensagens_nao_lidas) > 0:
@@ -107,7 +107,6 @@ while True:
                         data_hora = "[Data/Hora não encontrada] "
                         texto_bruto = ""
                     
-                    # --- INÍCIO DA PREVENÇÃO DE LOOP INFINITO ---
                     id_mensagem = f"{data_hora}|{texto_bruto}"
                     
                     if ultima_mensagem_lida.get(nome_contato) == id_mensagem:
@@ -117,7 +116,6 @@ while True:
                         continue
                         
                     ultima_mensagem_lida[nome_contato] = id_mensagem
-                    # --- FIM DA PREVENÇÃO DE LOOP INFINITO ---
 
                     imagens = ultimo_balao.find_elements(By.XPATH, ".//img[contains(@src, 'blob:')]")
 
@@ -264,6 +262,7 @@ while True:
 
                                 if len(texto_extraido.strip()) > 4:
                                     resposta = buscar_resposta(texto_extraido)
+                                    
                                     
                                     if "Desculpe, não consegui entender sua solicitação" in resposta:
                                         falhas = tentativas_falhas.get(nome_contato, 0) + 1
