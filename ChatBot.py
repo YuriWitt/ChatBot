@@ -16,9 +16,11 @@ import easyocr
 import os
 import cv2 
 import re   
-from datetime import datetime, time as dt_time
+from datetime import datetime, time as dt_time # Nova importação de tempo
 
 warnings.filterwarnings("ignore", category=UserWarning)
+
+# --- FUNÇÕES DE AUXÍLIO ---
 
 def buscar_resposta(mensagem):
     try:
@@ -43,17 +45,21 @@ def buscar_resposta(mensagem):
 
 def dentro_do_horario_atendimento():
     agora = datetime.now()
-    dia_semana = agora.weekday() 
+    dia_semana = agora.weekday() # 0 = Segunda, 1 = Terça... 5 = Sábado, 6 = Domingo
     hora = agora.time()
 
+    # Se for Sábado (5) ou Domingo (6), já retorna falso direto
     if dia_semana in [5, 6]:
         return False
 
-    
+    # Verifica os intervalos de Segunda a Sexta
+    # Manhã: 08:00 às 12:00 | Tarde: 13:12 às 18:00
     if (dt_time(8, 0) <= hora <= dt_time(12, 0)) or (dt_time(13, 12) <= hora <= dt_time(18, 0)):
         return True
         
     return False
+
+# --- INICIALIZAÇÃO DO CHATBOT ---
 
 print("Chatbot iniciado. Digite 'sair' para encerrar a conversa.")
 
@@ -78,11 +84,13 @@ except TimeoutException:
     navegador.quit()
     exit()
 
+# Dicionários de estado
 estado_usuarios = {}
 dados_clientes = {}
 tentativas_falhas = {}
 ultima_mensagem_lida = {}
 
+# --- LOOP PRINCIPAL ---
 
 while True:
     try:
@@ -145,6 +153,7 @@ while True:
 
                     estado_atual = estado_usuarios.get(nome_contato)
 
+                    # --- LÓGICA DE ESTADOS ---
                     if estado_atual == "ATENDIMENTO_HUMANO":
                         baloes_enviados = navegador.find_elements(By.XPATH, "//div[contains(@class, 'message-out')]")
                         atendimento_finalizado = False
@@ -339,10 +348,11 @@ while True:
                                 resposta = "Desculpe, mas o tipo de mensagem que você enviou não é suportado pelo nosso robô. Por favor, envie uma mensagem de texto ou uma imagem clara do erro que você está enfrentando."
                                 tentativas_falhas[nome_contato] = falhas
                     
-                    
+                    # --- NOVO CLIENTE (PRIMEIRO CONTATO E VERIFICAÇÃO DE HORÁRIO) ---
                     else:
                         saudacao = "Olá! Sou o assistente virtual de suporte da Insoft.\n\nPara começarmos o seu atendimento, por favor, me informe o nome da sua empresa ou CNPJ:"
                         
+                        # Se estiver FORA do horário, junta o aviso com a saudação
                         if not dentro_do_horario_atendimento():
                             aviso_horario = "Nosso horário de atendimento é:\nSegunda à Sexta das 08:00 às 12:00 e 13:12 às 18:00.\nSábados e Domingos : Fechados\n\n"
                             resposta = aviso_horario + saudacao
@@ -351,6 +361,7 @@ while True:
                             
                         estado_usuarios[nome_contato] = "AGUARDANDO_EMPRESA_CNPJ"
                     
+                    # --- ENVIO DA RESPOSTA ---
                     caixa_texto_envio = navegador.find_element(By.XPATH, '//*[@id="main"]//footer//div[@contenteditable="true"]')
 
                     for linha in resposta.split('\n'):
