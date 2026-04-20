@@ -1,6 +1,6 @@
 #  Assistente Virtual de Suporte WhatsApp
 
-Projeto DE um chatbot automatizado em Python que opera através do WhatsApp Web. Ele foi desenvolvido para realizar a triagem inicial de clientes, identificar erros descritos em texto ou capturados em imagens (screenshots), buscar soluções em uma base de conhecimento (planilha Excel) e transferir o atendimento para um atendente humano quando necessário.
+Projeto de um chatbot automatizado em Python que opera através do WhatsApp Web. Ele foi desenvolvido para realizar a triagem inicial de clientes, identificar erros descritos em texto ou capturados em imagens (screenshots), buscar soluções em uma base de conhecimento (planilha Excel) e transferir o atendimento para um atendente humano quando necessário.
 
 
 
