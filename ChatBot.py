@@ -16,11 +16,10 @@ import easyocr
 import os
 import cv2 
 import re   
-from datetime import datetime, time as dt_time # Nova importação de tempo
+from datetime import datetime, time as dt_time
+import psycopg2
 
 warnings.filterwarnings("ignore", category=UserWarning)
-
-# --- FUNÇÕES DE AUXÍLIO ---
 
 def buscar_resposta(mensagem):
     try:
@@ -45,21 +44,69 @@ def buscar_resposta(mensagem):
 
 def dentro_do_horario_atendimento():
     agora = datetime.now()
-    dia_semana = agora.weekday() # 0 = Segunda, 1 = Terça... 5 = Sábado, 6 = Domingo
+    dia_semana = agora.weekday() 
     hora = agora.time()
 
-    # Se for Sábado (5) ou Domingo (6), já retorna falso direto
     if dia_semana in [5, 6]:
         return False
 
-    # Verifica os intervalos de Segunda a Sexta
-    # Manhã: 08:00 às 12:00 | Tarde: 13:12 às 18:00
+    
     if (dt_time(8, 0) <= hora <= dt_time(12, 0)) or (dt_time(13, 12) <= hora <= dt_time(18, 0)):
         return True
         
     return False
 
-# --- INICIALIZAÇÃO DO CHATBOT ---
+def registrar_atendimento_no_banco(nome_contato, empresa, problema_relatado):
+    conexao = None
+    novo_codigo = "Indisponível"
+    try:
+        conexao = psycopg2.connect(
+            host="localhost",
+            database="insoft2",
+            user="postgres",
+            password="Alsaga94"
+        )
+        cursor = conexao.cursor()
+        doc_limpo = re.sub(r'\D', '', empresa)
+        nome_buscar = f"%{empresa}%"
+
+        query_contrato = """SELECT con_numero FROM itservice.contrato WHERE con_documento =%s OR con_documento = %s or con_empresa_ws ILIKE %s LIMIT 1;"""
+        cursor.execute(query_contrato, (doc_limpo, empresa, nome_buscar))
+        res = cursor.fetchone()
+        id_contrato = res[0] if res else 0
+
+        sql_ins = """
+            INSERT INTO itservice.atendimento
+            (ate_codigo, ate_emissao, ate_responsavel, ate_cliente, ate_contato, ate_situacao, ate_editor, 
+             ate_hora, ate_tipo, ate_contrato, ate_origem, ate_descricao, ate_data_fechamento, ate_data_alteracao, 
+             ate_retornar, ate_data_alteracao_resp, ate_reabrir_motivo, ate_alteracao_tipo_motivo, ate_orcamento, 
+             ate_resolvido, ate_avaliacao, ate_avaliado, ate_comentario, ate_guid, ate_contato_email, 
+             ate_avaliacao_email, ate_avaliado_em)
+            VALUES(
+                nextval('itservice.atendimento_ate_codigo_seq'::regclass), 
+                datahora_servidor(), 0, %s, %s, 'A'::bpchar, 0, now(), 
+                'T'::bpchar, %s, 'E'::bpchar, %s, '', '', false, '', '', '', 0, 
+                false, 0, false, %s, uuid_generate_v4(), '', 0, ''
+            ) RETURNING ate_codigo;
+        """
+
+        comentario = f"Identificador digitado pelo cliente: {empresa}"
+        cursor.execute(sql_ins, (id_contrato, nome_contato, str(id_contrato), problema_relatado, comentario))
+        novo_codigo = cursor.fetchone()[0]
+        
+        conexao.commit()
+        print(f"[DB] Sucesso! Protocolo gerado: {novo_codigo}")
+        
+        return novo_codigo # Devolve o número para o robô usar!
+
+    except Exception as e:
+        print(f"[ERRO BANCO]: {e}")
+        return novo_codigo
+    finally:
+        if conexao:
+            cursor.close()
+            conexao.close()
+
 
 print("Chatbot iniciado. Digite 'sair' para encerrar a conversa.")
 
@@ -69,6 +116,9 @@ print("Leitura de imagens carregada com sucesso!")
 
 chrome_options = Options()
 chrome_options.add_experimental_option("detach", True)
+
+caminho_perfil = os.path.join(os.getenv("USERPROFILE"), "sessao_whatsapp")
+chrome_options.add_argument(f"user-data-dir={caminho_perfil}")
 
 servico = Service(ChromeDriverManager().install())
 navegador = webdriver.Chrome(service=servico, options=chrome_options)
@@ -84,13 +134,11 @@ except TimeoutException:
     navegador.quit()
     exit()
 
-# Dicionários de estado
 estado_usuarios = {}
 dados_clientes = {}
 tentativas_falhas = {}
 ultima_mensagem_lida = {}
 
-# --- LOOP PRINCIPAL ---
 
 while True:
     try:
@@ -153,7 +201,6 @@ while True:
 
                     estado_atual = estado_usuarios.get(nome_contato)
 
-                    # --- LÓGICA DE ESTADOS ---
                     if estado_atual == "ATENDIMENTO_HUMANO":
                         baloes_enviados = navegador.find_elements(By.XPATH, "//div[contains(@class, 'message-out')]")
                         atendimento_finalizado = False
@@ -220,11 +267,21 @@ while True:
 
                     elif estado_atual == "AGUARDANDO_CONFIRMACAO":
                         if mensagem_limpa in ["sim", "s", "sim resolveu", "resolvido", "resolvi"]:
-                            resposta = "Ótimo! Fico feliz em ter ajudado.\n\nPara nos ajudar a melhorar, como você avalia o meu atendimento de *1 a 5*? (Sendo 1 Ruim e 5 Excelente)"
+                            resposta = "Ótimo! Fico feliz em ter ajudado.\n\nPara nos ajudar a melhorar nosso atendimento, como você avalia o meu atendimento de *1 a 5*? (Sendo 1 Ruim e 5 Excelente)"
                             estado_usuarios[nome_contato] = "AGUARDANDO_AVALIACAO"
                             
-                        elif mensagem_limpa in ["nao", "não", "n", "nao resolveu", "não resolveu"]:
-                            resposta = "Certo, entendi. Estou encaminhando o seu caso para um de nossos atendentes. Por favor, aguarde um momento."
+                        elif mensagem_limpa in ["nao", "não", "n"]:
+                            info = dados_clientes.get(nome_contato, {})
+                            
+                            # Captura o protocolo retornado pela função
+                            protocolo = registrar_atendimento_no_banco(
+                                info.get('nome', nome_contato), 
+                                info.get('empresa', ''), 
+                                "O cliente informou que a solução sugerida pela IA não resolveu o problema."
+                            )
+    
+                            # Mostra o protocolo na mensagem
+                            resposta = f"Certo, entendi. Estou encaminhando o seu caso para um de nossos atendentes.\n\n*Seu protocolo de atendimento é: {protocolo}*"
                             estado_usuarios[nome_contato] = "ATENDIMENTO_HUMANO"
                             
                         else:
@@ -289,9 +346,16 @@ while True:
                                     if "Desculpe, não consegui entender sua solicitação" in resposta:
                                         falhas = tentativas_falhas.get(nome_contato, 0) + 1
                                         if falhas >= 2:
-                                            resposta = "Parece que não estou conseguindo encontrar a solução para o seu problema.\n\nEstou encaminhando o seu caso para um de nossos atendentes. Por favor, aguarde um momento."
-                                            estado_usuarios[nome_contato] = "ATENDIMENTO_HUMANO"
-                                            tentativas_falhas.pop(nome_contato, None)
+                                                info = dados_clientes.get(nome_contato, {})
+                                                
+                                                protocolo = registrar_atendimento_no_banco(
+                                                    info.get('nome', nome_contato), 
+                                                    info.get('empresa', ''), 
+                                                    f"Dúvida não encontrada na base: {ultima_mensagem}"
+                                                )
+                                                
+                                                resposta = f"Não encontrei a solução. Encaminhando para um atendente...\n\n*Seu protocolo de atendimento é: {protocolo}*"
+                                                estado_usuarios[nome_contato] = "ATENDIMENTO_HUMANO"
                                         else:
                                             resposta = "Desculpe, não encontrei a solução para o erro mostrado na imagem. Por favor, tente enviar uma foto mais nítida ou digite o erro manualmente."
                                             tentativas_falhas[nome_contato] = falhas
@@ -303,9 +367,16 @@ while True:
                                 else:
                                     falhas = tentativas_falhas.get(nome_contato, 0) + 1
                                     if falhas >= 2:
-                                        resposta = "Parece que não estou conseguindo ler a imagem do seu problema.\n\nEstou encaminhando o seu caso para um de nossos atendentes. Por favor, aguarde um momento."
+                                        info = dados_clientes.get(nome_contato, {})
+                                        
+                                        protocolo = registrar_atendimento_no_banco(
+                                            info.get('nome', nome_contato), 
+                                            info.get('empresa', ''), 
+                                            "Falha ao identificar o erro através de imagem (2 tentativas)."
+                                        )
+                                        
+                                        resposta = f"Não consegui ler sua imagem. Encaminhando para um atendente...\n\n*Seu protocolo de atendimento é: {protocolo}*"
                                         estado_usuarios[nome_contato] = "ATENDIMENTO_HUMANO"
-                                        tentativas_falhas.pop(nome_contato, None)
                                     else:
                                         resposta = "Desculpe, mas a imagem parece estar ilegível ou sem texto de erro. Por favor, tente enviar uma imagem mais clara ou informe o erro manualmente."
                                         tentativas_falhas[nome_contato] = falhas
@@ -348,20 +419,18 @@ while True:
                                 resposta = "Desculpe, mas o tipo de mensagem que você enviou não é suportado pelo nosso robô. Por favor, envie uma mensagem de texto ou uma imagem clara do erro que você está enfrentando."
                                 tentativas_falhas[nome_contato] = falhas
                     
-                    # --- NOVO CLIENTE (PRIMEIRO CONTATO E VERIFICAÇÃO DE HORÁRIO) ---
+                    
                     else:
                         saudacao = "Olá! Sou o assistente virtual de suporte da Insoft.\n\nPara começarmos o seu atendimento, por favor, me informe o nome da sua empresa ou CNPJ:"
                         
-                        # Se estiver FORA do horário, junta o aviso com a saudação
                         if not dentro_do_horario_atendimento():
-                            aviso_horario = "Nosso horário de atendimento é:\nSegunda à Sexta das 08:00 às 12:00 e 13:12 às 18:00.\nSábados e Domingos : Fechados\n\n"
+                            aviso_horario = "Estamos fora do nosso horário de atendimento no momento :( .\nNosso horário de atendimento é:\nSegunda à Sexta das 08:00 às 12:00 e 13:12 às 18:00.\nSábados e Domingos : Fechados\n\n"
                             resposta = aviso_horario + saudacao
                         else:
                             resposta = saudacao
                             
                         estado_usuarios[nome_contato] = "AGUARDANDO_EMPRESA_CNPJ"
                     
-                    # --- ENVIO DA RESPOSTA ---
                     caixa_texto_envio = navegador.find_element(By.XPATH, '//*[@id="main"]//footer//div[@contenteditable="true"]')
 
                     for linha in resposta.split('\n'):
